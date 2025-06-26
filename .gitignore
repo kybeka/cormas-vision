@@ -1,2 +1,5 @@
 .DS_Store
-GameData
+game-data/
+venv/
+__pycache__/
+*.pyc
