@@ -1,6 +1,13 @@
 .DS_Store
 game-data/
+planet-c-frames/
+unlabeled-pool/
 venv/
 __pycache__/
 *.pyc
 .env
+
+# test/
+# train/
+# valid/
+# val/
