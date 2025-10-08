@@ -1,13 +1,22 @@
 .DS_Store
-game-data/
-planet-c-frames/
-unlabeled-pool/
 venv/
 __pycache__/
 *.pyc
 .env
 
-# test/
-# train/
-# valid/
-# val/
+# push the models
+*.pt
+
+# image paths
+game-data/
+planet-c-frames/
+unlabeled-pool/
+extracted-frames/
+predictions/
+visualizations/
+
+
+test/
+train/
+valid/
+val/
