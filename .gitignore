@@ -4,13 +4,14 @@ __pycache__/
 *.pyc
 .env
 
-# push the models
+# don't push the models
 *.pt
 
 # image paths
 game-data/
 planet-c-frames/
 unlabeled-pool/
+unlabeled_pool/
 extracted-frames/
 predictions/
 visualizations/
@@ -20,3 +21,4 @@ test/
 train/
 valid/
 val/
+runs/
