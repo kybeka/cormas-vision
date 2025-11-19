@@ -7,6 +7,9 @@ __pycache__/
 # don't push the models
 *.pt
 
+#dont push certs
+*.pem
+
 # image paths
 game-data/
 planet-c-frames/
