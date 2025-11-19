@@ -22,7 +22,7 @@ pseudo_labels/
 pseudo_images/
 extracted_frames/
 inference_results/
-
+frames/
 
 test/
 train/
