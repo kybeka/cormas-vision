@@ -17,6 +17,9 @@ predictions/
 visualizations/
 pseudo_labels/
 pseudo_images/
+extracted_frames/
+inference_results/
+
 
 test/
 train/
