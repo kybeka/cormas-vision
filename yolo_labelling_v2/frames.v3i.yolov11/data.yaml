@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 12
+names: ['blue-pawn', 'blue-token', 'board', 'green-token', 'hand', 'inner-board', 'orange-token', 'red-pawn', 'red-token', 'white-pawn', 'yellow-pawn', 'yellow-token']
+
+roboflow:
+  workspace: cormasvision
+  project: my-first-project-6tkbq
+  version: 3
+  license: MIT
+  url: https://universe.roboflow.com/cormasvision/my-first-project-6tkbq/dataset/3

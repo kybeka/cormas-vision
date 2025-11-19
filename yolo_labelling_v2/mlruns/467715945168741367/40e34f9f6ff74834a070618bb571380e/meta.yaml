@@ -1,0 +1,14 @@
+artifact_uri: file:///Users/kylakaplan/Desktop/cormas-vision/yolo_labelling_v2/mlruns/467715945168741367/40e34f9f6ff74834a070618bb571380e/artifacts
+end_time: 1759754674457
+entry_point_name: ''
+experiment_id: '467715945168741367'
+lifecycle_stage: active
+run_id: 40e34f9f6ff74834a070618bb571380e
+run_name: iter_02
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1759754672702
+status: 3
+tags: []
+user_id: kylakaplan
