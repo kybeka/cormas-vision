@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Phone Camera → HTTPS Frames</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    video { width: 100%; max-width: 400px; background: #000; }
+    #status { margin-top: 0.5rem; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <h2>Phone Camera → Laptop (HTTPS POST)</h2>
+
+  <label>
+    Interval (ms between frames):
+    <input id="intervalMs" type="number" value="200" />
+  </label>
+  <br /><br />
+
+  <button id="startBtn">Start streaming</button>
+  <button id="stopBtn" disabled>Stop</button>
+
+  <div id="status"></div>
+
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const statusEl = document.getElementById("status");
+    const intervalInput = document.getElementById("intervalMs");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+
+    let captureTimer = null;
+    let sentCount = 0;
+
+    function logStatus(msg) {
+      statusEl.textContent = msg;
+      console.log(msg);
+    }
+
+    async function startStreaming() {
+      const intervalMs = parseInt(intervalInput.value, 10) || 200;
+
+      // 1. camera
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        logStatus("Camera started.");
+      } catch (err) {
+        console.error(err);
+        logStatus("Error accessing camera: " + err.message);
+        return;
+      }
+
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      sentCount = 0;
+
+      // 2. periodically capture and POST frame
+      captureTimer = setInterval(async () => {
+        try {
+          ctx.drawImage(video, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+
+          await fetch("/upload_frame", {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: dataUrl
+          });
+
+          sentCount++;
+          logStatus(`Frames sent: ${sentCount}`);
+        } catch (err) {
+          console.error(err);
+          logStatus("Send error: " + err.message);
+        }
+      }, intervalMs);
+    }
+
+    function stopStreaming() {
+      if (captureTimer) {
+        clearInterval(captureTimer);
+        captureTimer = null;
+      }
+
+      if (video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+        video.srcObject = null;
+      }
+
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      logStatus("Stopped.");
+    }
+
+    startBtn.addEventListener("click", startStreaming);
+    stopBtn.addEventListener("click", stopStreaming);
+  </script>
+</body>
+</html>
