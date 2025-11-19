@@ -15,10 +15,12 @@ unlabeled_pool/
 extracted-frames/
 predictions/
 visualizations/
-
+pseudo_labels/
+pseudo_images/
 
 test/
 train/
 valid/
 val/
 runs/
+weights/
