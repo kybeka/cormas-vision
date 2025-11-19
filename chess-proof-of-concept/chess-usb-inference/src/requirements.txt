@@ -1,4 +1,0 @@
-opencv-python==4.8.1.78
-ultralytics==8.0.196
-huggingface_hub==0.17.3
-numpy==1.24.3

@@ -1,0 +1,35 @@
+{
+  "max_iterations": 10,
+  "confidence_threshold": 0.75,
+  "frames_per_iteration": 25,
+  "min_improvement": 0.005,
+  "manual_inspection": true,
+  "inspection_mode": "interactive",
+  "auto_approve_threshold": 0.95,
+  "training_params": {
+    "epochs": 25,
+    "batch": 8,
+    "lr0": 0.001,
+    "patience": 8,
+    "imgsz": 640,
+    "warmup_epochs": 3,
+    "weight_decay": 0.0005,
+    "dropout": 0.1,
+    "augment": true
+  },
+  "data_yaml": "frames.v3i.yolov11/data.yaml",
+  "model_path": "runs/obb/train10/weights/best.pt",
+  "unlabeled_pool": "unlabeled_pool",
+  "pseudo_dir": "pseudo_iterations",
+  "selection_strategy": "random",
+  "quality_filters": {
+    "min_detections_per_frame": 1,
+    "max_detections_per_frame": 50,
+    "min_box_area": 100
+  },
+  "inspection_settings": {
+    "show_help_overlay": true,
+    "auto_save_changes": true,
+    "default_drawing_class": 0
+  }
+}
