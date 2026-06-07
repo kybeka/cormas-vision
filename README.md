@@ -18,7 +18,7 @@ It's organised as the project actually unfolded, phase by phase:
 | 5 | `05-runtime/` | The live demo: phone capture → detection → board homography → cell mapping |
 | 6 | `06-cormas-bridge/` | Connecting it all to CORMAS (Pharo) — still to build |
 
-Start with **`PROJECT_STATE.md`** for an honest snapshot of what works, what's broken, and what's next, and **`CONSOLIDATION_PLAN.md`** for how the repo is being cleaned up.
+See `docs/` for the proposal, timeline, and weekly reports.
 
 ## The pipeline (stages 1–6 work; stage 7 is the gap)
 
@@ -43,8 +43,8 @@ cd 05-runtime && python3 demo.py --rows 4 --cols 5
 
 ## Status
 
-Detection is strong for the well-labelled classes (green/yellow tokens, board) and weak or missing for the rest — a data-coverage gap, not a model failure. The CORMAS bridge is the main remaining piece. See `PROJECT_STATE.md` for specifics.
+Detection is strong for the well-labelled classes (green/yellow tokens, board) and weak or missing for the rest — a data-coverage gap, not a model failure. The CORMAS bridge is the main remaining piece.
 
 ## Heavy data
 
-Datasets, model weights, videos and training runs are kept out of git (Roboflow holds the annotated images). See `CONSOLIDATION_PLAN.md` for where they live.
+Datasets, model weights, videos and training runs are kept out of git (Roboflow holds the annotated images).

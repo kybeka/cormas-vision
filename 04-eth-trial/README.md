@@ -4,9 +4,9 @@ Live test of the Planet-C pipeline at ETH. A half-pseudo-labelled YOLO11-OBB mod
 
 ## What's here
 - `logs/` — the per-frame demo outputs (`<session>/frame_NNNNN.txt`): one line per detection (`class  conf  x  y  cell`) plus the grouped `#class cell cell ...` summary. Three sessions, 777 frames total.
-- Result videos (`annotated.mp4`, `edges.mp4`, `side_by_side.mp4`) and raw trial photos are kept out of git for now — see `../CONSOLIDATION_PLAN.md` (data relocation pending).
+- Result videos (`annotated.mp4`, `edges.mp4`, `side_by_side.mp4`) and raw trial photos are kept out of git for now (data relocation pending).
 
-## What the logs show (see `../PROJECT_STATE.md` §3 for the full table)
+## What the logs show
 - **Strong:** green-token (~0.90 conf), yellow-token (~0.94), board / inner-board (~0.93–0.95).
 - **Weak:** orange-token (~0.68), red-pawn (~0.60), blue-pawn (~0.48), hand (~0.65).
 - **Never detected:** blue-token, red-token, yellow-pawn, white-pawn — the model had no usable labels for these.
