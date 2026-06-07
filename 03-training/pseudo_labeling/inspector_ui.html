@@ -13,7 +13,6 @@
   html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
     font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
   .app{display:flex;flex-direction:column;height:100vh}
-  /* top bar */
   .top{display:flex;align-items:center;gap:14px;padding:8px 14px;background:var(--panel);
     border-bottom:1px solid var(--line);flex:0 0 auto}
   .top .name{font-weight:600}
@@ -29,13 +28,11 @@
   .btn:disabled{opacity:.4;cursor:default}
   kbd{background:#0b0d11;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;
     padding:1px 6px;font:12px ui-monospace,Menlo,monospace;color:var(--mut)}
-  /* body */
   .body{display:flex;flex:1;min-height:0}
   .stage{flex:1;position:relative;background:#0a0c10;min-width:0}
   canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
   .hint{position:absolute;left:12px;bottom:10px;color:var(--mut);font-size:12px;
     background:rgba(10,12,16,.7);padding:4px 8px;border-radius:6px;pointer-events:none}
-  /* sidebar */
   .side{width:280px;flex:0 0 280px;background:var(--panel);border-left:1px solid var(--line);
     display:flex;flex-direction:column;min-height:0}
   .side h3{margin:0;padding:11px 14px 7px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut)}
@@ -44,8 +41,7 @@
   .active-cls .sw{width:16px;height:16px;border-radius:4px}
   .active-cls b{font-size:13px}
   .palette{overflow-y:auto;padding:2px 8px 8px;flex:1;min-height:60px}
-  .cls{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;cursor:pointer;
-    border:1px solid transparent}
+  .cls{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:7px;cursor:pointer;border:1px solid transparent}
   .cls:hover{background:var(--panel2)}
   .cls.sel{background:#222a36;border-color:var(--accent)}
   .cls .sw{width:14px;height:14px;border-radius:4px;flex:0 0 auto}
@@ -100,75 +96,92 @@
       </div>
       <div class="help">
         <div><span>Draw box</span><kbd>drag</kbd></div>
-        <div><span>Select / move</span><kbd>click / drag</kbd></div>
-        <div><span>Resize</span><kbd>drag handles</kbd></div>
-        <div><span>Pan</span><kbd>space-drag</kbd></div>
-        <div><span>Zoom</span><kbd>scroll</kbd></div>
+        <div><span>Rotate</span><kbd>drag top handle</kbd></div>
+        <div><span>Resize</span><kbd>drag corners</kbd></div>
+        <div><span>Move</span><kbd>drag body</kbd></div>
+        <div><span>Pan / Zoom</span><kbd>space-drag / scroll</kbd></div>
         <div><span>Delete</span><kbd>Del</kbd></div>
         <div><span>Reclass selected</span><kbd>hotkey</kbd></div>
-        <div><span>Prev / Next</span><kbd>A / D</kbd></div>
-        <div><span>Save</span><kbd>S</kbd></div>
+        <div><span>Prev / Next / Save</span><kbd>A / D / S</kbd></div>
       </div>
     </div>
   </div>
 </div>
 <script>
 const ITER = parseInt("__ITERATION__") || 0;
-const HOTKEYS = "1234567890qwertyuiop".split(""); // up to 20 classes
+const HOTKEYS = "1234567890qwertyuiop".split("");
+const ROT_OFFSET = 24; // screen px for rotation handle stalk
 const S = {
   classes:[], colors:[], total:0, idx:0,
   img:null, iw:0, ih:0,
-  boxes:[],            // {cls, x1,y1,x2,y2} normalized
+  boxes:[],            // {cls, cx, cy, w, h, angle}  -- all in IMAGE PIXELS, angle radians
   active:0, sel:-1, tool:"draw",
   scale:1, zoom:1, ox:0, oy:0,
-  dirty:false, undo:[],
-  drag:null,           // active interaction
-  space:false, mouse:{x:0,y:0},
+  dirty:false, undo:[], drag:null, space:false,
 };
 const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
 const $ = id => document.getElementById(id);
+const clamp01 = v => Math.max(0, Math.min(1, v));
+
+/* ---------- geometry ---------- */
+function rot(x,y,a){ const c=Math.cos(a), s=Math.sin(a); return {x:x*c-y*s, y:x*s+y*c}; }
+function corners(b){ // 4 image-pixel points: TL,TR,BR,BL in the box's local order
+  const hw=b.w/2, hh=b.h/2;
+  return [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].map(([lx,ly])=>{
+    const r=rot(lx,ly,b.angle); return {x:b.cx+r.x, y:b.cy+r.y};
+  });
+}
+function rotHandle(b){ // image-pixel point above the top edge (offset constant in screen px)
+  const d=b.h/2 + ROT_OFFSET/S.scale, r=rot(0,-d,b.angle);
+  return {x:b.cx+r.x, y:b.cy+r.y};
+}
+function inBox(px,py,b){ const r=rot(px-b.cx, py-b.cy, -b.angle);
+  return Math.abs(r.x)<=b.w/2 && Math.abs(r.y)<=b.h/2; }
+
+/* points(normalized) <-> box(pixels) */
+function toBox(d){
+  let pts;
+  if(d.type==="polygon"&&d.points) pts=d.points.map(p=>[p[0]*S.iw, p[1]*S.ih]);
+  else if(d.type==="bbox"){ const x=d.x_center*S.iw,y=d.y_center*S.ih,w=d.width*S.iw,h=d.height*S.ih;
+    pts=[[x-w/2,y-h/2],[x+w/2,y-h/2],[x+w/2,y+h/2],[x-w/2,y+h/2]]; }
+  else return null;
+  const cx=(pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4, cy=(pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4;
+  const w=Math.hypot(pts[1][0]-pts[0][0], pts[1][1]-pts[0][1]);
+  const h=Math.hypot(pts[2][0]-pts[1][0], pts[2][1]-pts[1][1]);
+  const angle=Math.atan2(pts[1][1]-pts[0][1], pts[1][0]-pts[0][0]);
+  return {cls:d.class_id, cx, cy, w:Math.max(w,1), h:Math.max(h,1), angle};
+}
+function fromBox(b){
+  const pts=corners(b).map(p=>[clamp01(p.x/S.iw), clamp01(p.y/S.ih)]);
+  return {class_id:b.cls, type:"polygon", points:pts};
+}
 
 /* ---------- data ---------- */
 async function init(){
   const r = await fetch(`/api/init/${ITER}`).then(r=>r.json());
   if(r.error){ $("fname").textContent = "ERROR: "+r.error; return; }
-  S.classes = r.class_names; S.colors = r.class_colors; S.total = r.total_images;
+  S.classes=r.class_names; S.colors=r.class_colors; S.total=r.total_images;
   buildPalette(); setActive(firstPawnOr0());
-  await load(0);
   window.addEventListener("resize", ()=>{ resize(); draw(); });
-  resize();
+  resize(); await load(0);
 }
-function firstPawnOr0(){ const i = S.classes.findIndex(c=>c.includes("pawn")); return i<0?0:i; }
-
+function firstPawnOr0(){ const i=S.classes.findIndex(c=>c.includes("pawn")); return i<0?0:i; }
 async function load(i){
   if(i<0||i>=S.total) return;
   if(S.dirty) await save(false);
-  S.idx = i;
-  const r = await fetch(`/api/image/${i}`).then(r=>r.json());
-  S.boxes = (r.detections||[]).map(toBox).filter(Boolean);
-  S.sel = -1; S.undo = []; S.dirty = false;
-  const im = new Image();
-  im.onload = ()=>{ S.img=im; S.iw=im.naturalWidth; S.ih=im.naturalHeight; fit(); draw(); };
-  im.src = r.image_data;
-  $("fname").textContent = r.filename;
-  $("counter").textContent = `${i+1} / ${S.total}`;
-  $("progbar").style.width = ((i+1)/S.total*100)+"%";
-  updateUI();
-}
-function toBox(d){
-  let xs, ys;
-  if(d.type==="polygon"&&d.points){ xs=d.points.map(p=>p[0]); ys=d.points.map(p=>p[1]); }
-  else if(d.type==="bbox"){ xs=[d.x_center-d.width/2,d.x_center+d.width/2]; ys=[d.y_center-d.height/2,d.y_center+d.height/2]; }
-  else return null;
-  return {cls:d.class_id, x1:Math.min(...xs), y1:Math.min(...ys), x2:Math.max(...xs), y2:Math.max(...ys)};
-}
-function fromBox(b){
-  const {x1,y1,x2,y2}=b;
-  return {class_id:b.cls, type:"polygon", points:[[x1,y1],[x2,y1],[x2,y2],[x1,y2]]};
+  S.idx=i;
+  const r=await fetch(`/api/image/${i}`).then(r=>r.json());
+  const im=new Image();
+  im.onload=()=>{ S.img=im; S.iw=im.naturalWidth; S.ih=im.naturalHeight;
+    S.boxes=(r.detections||[]).map(toBox).filter(Boolean); S.sel=-1; S.undo=[]; S.dirty=false;
+    fit(); draw(); updateUI(); };
+  im.src=r.image_data;
+  $("fname").textContent=r.filename; $("counter").textContent=`${i+1} / ${S.total}`;
+  $("progbar").style.width=((i+1)/S.total*100)+"%";
 }
 async function save(flash=true){
-  const body={image_index:S.idx, detections:S.boxes.map(fromBox), status:"approved"};
-  await fetch("/api/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  await fetch("/api/save",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({image_index:S.idx, detections:S.boxes.map(fromBox), status:"approved"})});
   S.dirty=false; updateUI();
   if(flash){ const t=$("savetxt"); t.textContent="saved ✓"; setTimeout(()=>t.textContent="saved",900); }
 }
@@ -179,8 +192,7 @@ function buildPalette(){
   S.classes.forEach((nm,i)=>{
     const el=document.createElement("div"); el.className="cls"; el.dataset.i=i;
     el.innerHTML=`<span class="sw" style="background:${S.colors[i]}"></span>
-      <span class="nm">${nm}</span>
-      <span class="k">${HOTKEYS[i]||""}</span><span class="ct" id="ct${i}">0</span>`;
+      <span class="nm">${nm}</span><span class="k">${HOTKEYS[i]||""}</span><span class="ct" id="ct${i}">0</span>`;
     el.onclick=()=>{ if(S.sel>=0){ pushUndo(); S.boxes[S.sel].cls=i; S.dirty=true; } setActive(i); draw(); updateUI(); };
     p.appendChild(el);
   });
@@ -188,117 +200,112 @@ function buildPalette(){
 function setActive(i){ S.active=i; $("actSw").style.background=S.colors[i]; $("actNm").textContent=S.classes[i];
   document.querySelectorAll(".cls").forEach(e=>e.classList.toggle("sel",+e.dataset.i===i)); }
 function updateUI(){
-  const counts=new Array(S.classes.length).fill(0);
-  S.boxes.forEach(b=>counts[b.cls]++);
+  const counts=new Array(S.classes.length).fill(0); S.boxes.forEach(b=>counts[b.cls]++);
   counts.forEach((c,i)=>{ const e=$("ct"+i); if(e){ e.textContent=c; e.classList.toggle("has",c>0);} });
   $("boxcount").textContent=S.boxes.length+" boxes";
-  $("savedot").className="dot "+(S.dirty?"dirty":"saved");
-  $("savetxt").textContent=S.dirty?"unsaved":"saved";
+  $("savedot").className="dot "+(S.dirty?"dirty":"saved"); $("savetxt").textContent=S.dirty?"unsaved":"saved";
   $("prevBtn").disabled=S.idx<=0; $("nextBtn").disabled=S.idx>=S.total-1;
   $("undoBtn").disabled=!S.undo.length; $("delBtn").disabled=S.sel<0;
   $("zoom").textContent=Math.round(S.zoom*100)+"%";
 }
 
-/* ---------- view transform ---------- */
-function resize(){
-  const r=$("stage").getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+/* ---------- view ---------- */
+function resize(){ const r=$("stage").getBoundingClientRect(), dpr=window.devicePixelRatio||1;
   cv.width=r.width*dpr; cv.height=r.height*dpr; cv.style.width=r.width+"px"; cv.style.height=r.height+"px";
-  ctx.setTransform(dpr,0,0,dpr,0,0);
-}
-function fit(){
-  const r=$("stage").getBoundingClientRect();
+  ctx.setTransform(dpr,0,0,dpr,0,0); }
+function fit(){ const r=$("stage").getBoundingClientRect();
   const s=Math.min(r.width/S.iw, r.height/S.ih)*0.96;
-  S.scale=s; S.zoom=1; S.ox=(r.width-S.iw*s)/2; S.oy=(r.height-S.ih*s)/2;
-}
-const sx=nx=>nx*S.iw*S.scale+S.ox, sy=ny=>ny*S.ih*S.scale+S.oy;
-const ix=px=>(px-S.ox)/(S.iw*S.scale), iy=py=>(py-S.oy)/(S.ih*S.scale);
+  S.scale=s; S.zoom=1; S.ox=(r.width-S.iw*s)/2; S.oy=(r.height-S.ih*s)/2; }
+const sx=px=>px*S.scale+S.ox, sy=py=>py*S.scale+S.oy;        // image px -> screen
+const ix=x=>(x-S.ox)/S.scale, iy=y=>(y-S.oy)/S.scale;        // screen -> image px
 
 /* ---------- render ---------- */
 function draw(){
-  const r=$("stage").getBoundingClientRect();
-  ctx.clearRect(0,0,r.width,r.height);
+  const r=$("stage").getBoundingClientRect(); ctx.clearRect(0,0,r.width,r.height);
   if(!S.img) return;
   ctx.drawImage(S.img, S.ox, S.oy, S.iw*S.scale, S.ih*S.scale);
   S.boxes.forEach((b,i)=>{
-    const x=sx(b.x1), y=sy(b.y1), w=sx(b.x2)-x, h=sy(b.y2)-y, col=S.colors[b.cls]||"#4c8dff";
-    ctx.lineWidth=(i===S.sel)?2.5:1.5; ctx.strokeStyle=col;
-    ctx.fillStyle=hexA(col,(i===S.sel)?0.18:0.10);
-    ctx.fillRect(x,y,w,h); ctx.strokeRect(x,y,w,h);
-    // label
-    const t=S.classes[b.cls]||b.cls, tw=ctx.measureText(t).width+10;
-    ctx.fillStyle=col; ctx.fillRect(x-0.75, y-15, tw, 15);
-    ctx.fillStyle="#0a0c10"; ctx.font="11px -apple-system,sans-serif"; ctx.fillText(t, x+4, y-4);
-    if(i===S.sel) handles(b).forEach(p=>{ ctx.fillStyle="#fff"; ctx.strokeStyle=col;
-      ctx.fillRect(p.x-4,p.y-4,8,8); ctx.strokeRect(p.x-4,p.y-4,8,8); });
+    const col=S.colors[b.cls]||"#4c8dff", cs=corners(b).map(p=>({x:sx(p.x),y:sy(p.y)})), seld=(i===S.sel);
+    ctx.lineWidth=seld?2.5:1.5; ctx.strokeStyle=col; ctx.fillStyle=hexA(col,seld?0.18:0.10);
+    ctx.beginPath(); ctx.moveTo(cs[0].x,cs[0].y); for(let k=1;k<4;k++) ctx.lineTo(cs[k].x,cs[k].y);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    const t=S.classes[b.cls]||b.cls; ctx.font="11px -apple-system,sans-serif";
+    const tw=ctx.measureText(t).width+10;
+    ctx.fillStyle=col; ctx.fillRect(cs[0].x-0.75, cs[0].y-15, tw, 15);
+    ctx.fillStyle="#0a0c10"; ctx.fillText(t, cs[0].x+4, cs[0].y-4);
+    if(seld){
+      const rh=rotHandle(b), rhs={x:sx(rh.x),y:sy(rh.y)}, top={x:(cs[0].x+cs[1].x)/2,y:(cs[0].y+cs[1].y)/2};
+      ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(top.x,top.y); ctx.lineTo(rhs.x,rhs.y); ctx.stroke();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(rhs.x,rhs.y,5,0,7); ctx.fill(); ctx.stroke();
+      cs.forEach(p=>{ ctx.fillStyle="#fff"; ctx.fillRect(p.x-4,p.y-4,8,8); ctx.strokeRect(p.x-4,p.y-4,8,8); });
+    }
   });
-  if(S.drag&&S.drag.mode==="draw"){
-    const a=S.drag, x=sx(a.x1),y=sy(a.y1),w=sx(a.x2)-x,h=sy(a.y2)-y;
-    ctx.lineWidth=1.5; ctx.setLineDash([5,4]); ctx.strokeStyle=S.colors[S.active];
-    ctx.strokeRect(x,y,w,h); ctx.setLineDash([]);
-  }
-}
-function handles(b){
-  const x1=sx(b.x1),y1=sy(b.y1),x2=sx(b.x2),y2=sy(b.y2),mx=(x1+x2)/2,my=(y1+y2)/2;
-  return [{x:x1,y:y1,h:"nw"},{x:mx,y:y1,h:"n"},{x:x2,y:y1,h:"ne"},{x:x2,y:my,h:"e"},
-          {x:x2,y:y2,h:"se"},{x:mx,y:y2,h:"s"},{x:x1,y:y2,h:"sw"},{x:x1,y:my,h:"w"}];
+  if(S.drag&&S.drag.mode==="draw"){ const a=S.drag;
+    ctx.setLineDash([5,4]); ctx.lineWidth=1.5; ctx.strokeStyle=S.colors[S.active];
+    ctx.strokeRect(sx(Math.min(a.x1,a.x2)),sy(Math.min(a.y1,a.y2)),
+      Math.abs(a.x2-a.x1)*S.scale,Math.abs(a.y2-a.y1)*S.scale); ctx.setLineDash([]); }
 }
 function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
 
+/* ---------- hit testing ---------- */
+function hitHandle(scrX,scrY){
+  if(S.sel<0) return null; const b=S.boxes[S.sel];
+  const rh=rotHandle(b); if(Math.hypot(scrX-sx(rh.x),scrY-sy(rh.y))<9) return {type:"rotate"};
+  const cs=corners(b);
+  for(let i=0;i<4;i++) if(Math.abs(scrX-sx(cs[i].x))<8&&Math.abs(scrY-sy(cs[i].y))<8) return {type:"corner",i};
+  return null;
+}
+function topBoxAt(scrX,scrY){ const px=ix(scrX),py=iy(scrY);
+  for(let i=S.boxes.length-1;i>=0;i--) if(inBox(px,py,S.boxes[i])) return i; return -1; }
+
 /* ---------- interaction ---------- */
-function pushUndo(){ S.undo.push(JSON.stringify(S.boxes)); if(S.undo.length>50)S.undo.shift(); }
-function hitHandle(px,py){ if(S.sel<0)return null; for(const p of handles(S.boxes[S.sel]))
-  if(Math.abs(px-p.x)<7&&Math.abs(py-p.y)<7) return p.h; return null; }
-function topBoxAt(px,py){ const nx=ix(px),ny=iy(py);
-  for(let i=S.boxes.length-1;i>=0;i--){ const b=S.boxes[i];
-    if(nx>=b.x1&&nx<=b.x2&&ny>=b.y1&&ny<=b.y2) return i; } return -1; }
+function pushUndo(){ S.undo.push(JSON.stringify(S.boxes)); if(S.undo.length>50) S.undo.shift(); }
+function rel(e){ const r=cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
 
 cv.addEventListener("mousedown",e=>{
-  const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
-  if(S.space||e.button===1){ S.drag={mode:"pan",px,py,ox:S.ox,oy:S.oy}; return; }
-  const hh=hitHandle(px,py);
-  if(hh){ pushUndo(); S.drag={mode:"resize",h:hh}; return; }
-  const hit=topBoxAt(px,py);
+  const m=rel(e);
+  if(S.space||e.button===1){ S.drag={mode:"pan",mx:m.x,my:m.y,ox:S.ox,oy:S.oy}; return; }
+  const hh=hitHandle(m.x,m.y);
+  if(hh&&hh.type==="rotate"){ pushUndo(); S.drag={mode:"rotate"}; return; }
+  if(hh&&hh.type==="corner"){ pushUndo(); const b=S.boxes[S.sel], cs=corners(b);
+    S.drag={mode:"resize", fixed:cs[(hh.i+2)%4], angle:b.angle, cls:b.cls}; return; }
+  const hit=topBoxAt(m.x,m.y);
   if(S.tool==="select"){
     if(hit>=0){ S.sel=hit; setActive(S.boxes[hit].cls); pushUndo();
-      S.drag={mode:"move",px,py,b:{...S.boxes[hit]}}; } else S.sel=-1;
+      S.drag={mode:"move",mx:m.x,my:m.y,b:{...S.boxes[hit]}}; } else S.sel=-1;
     draw(); updateUI(); return;
   }
-  // draw tool: remember start; decide click vs drag on move/up
-  S.drag={mode:"pending",px,py,x1:ix(px),y1:iy(py),hit};
+  S.drag={mode:"pending",mx:m.x,my:m.y,x1:ix(m.x),y1:iy(m.y),hit};
 });
 window.addEventListener("mousemove",e=>{
-  const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
-  S.mouse={x:px,y:py};
-  const d=S.drag; if(!d) return;
-  if(d.mode==="pan"){ S.ox=d.ox+(px-d.px); S.oy=d.oy+(py-d.py); draw(); return; }
-  if(d.mode==="pending"){ if(Math.hypot(px-d.px,py-d.py)>4){ d.mode="draw"; d.x2=ix(px); d.y2=iy(py);} else return; }
-  if(d.mode==="draw"){ d.x2=ix(px); d.y2=iy(py); draw(); return; }
-  if(d.mode==="move"){ const dx=(px-d.px)/(S.iw*S.scale), dy=(py-d.py)/(S.ih*S.scale), o=d.b, b=S.boxes[S.sel];
-    b.x1=o.x1+dx; b.x2=o.x2+dx; b.y1=o.y1+dy; b.y2=o.y2+dy; S.dirty=true; draw(); return; }
-  if(d.mode==="resize"){ const b=S.boxes[S.sel], nx=ix(px), ny=iy(py);
-    if(d.h.includes("n"))b.y1=ny; if(d.h.includes("s"))b.y2=ny;
-    if(d.h.includes("w"))b.x1=nx; if(d.h.includes("e"))b.x2=nx; S.dirty=true; draw(); return; }
+  const d=S.drag; if(!d) return; const m=rel(e);
+  if(d.mode==="pan"){ S.ox=d.ox+(m.x-d.mx); S.oy=d.oy+(m.y-d.my); draw(); return; }
+  if(d.mode==="pending"){ if(Math.hypot(m.x-d.mx,m.y-d.my)>4){ d.mode="draw"; } else return; }
+  if(d.mode==="draw"){ d.x2=ix(m.x); d.y2=iy(m.y); draw(); return; }
+  if(d.mode==="move"){ const dx=(m.x-d.mx)/S.scale, dy=(m.y-d.my)/S.scale, b=S.boxes[S.sel];
+    b.cx=d.b.cx+dx; b.cy=d.b.cy+dy; S.dirty=true; draw(); return; }
+  if(d.mode==="rotate"){ const b=S.boxes[S.sel];
+    b.angle=Math.atan2(iy(m.y)-b.cy, ix(m.x)-b.cx)+Math.PI/2; S.dirty=true; draw(); return; }
+  if(d.mode==="resize"){ const b=S.boxes[S.sel], px=ix(m.x), py=iy(m.y);
+    const a=-d.angle, mL=rot(px,py,a), fL=rot(d.fixed.x,d.fixed.y,a);
+    b.w=Math.max(Math.abs(mL.x-fL.x),1); b.h=Math.max(Math.abs(mL.y-fL.y),1);
+    const cL={x:(mL.x+fL.x)/2,y:(mL.y+fL.y)/2}, cW=rot(cL.x,cL.y,d.angle);
+    b.cx=cW.x; b.cy=cW.y; S.dirty=true; draw(); return; }
 });
-window.addEventListener("mouseup",e=>{
+window.addEventListener("mouseup",()=>{
   const d=S.drag; S.drag=null; if(!d) return;
-  if(d.mode==="pending"){ // it was a click
-    S.sel = d.hit; if(d.hit>=0) setActive(S.boxes[d.hit].cls); draw(); updateUI(); return; }
+  if(d.mode==="pending"){ S.sel=d.hit; if(d.hit>=0) setActive(S.boxes[d.hit].cls); draw(); updateUI(); return; }
   if(d.mode==="draw"){
-    let x1=Math.min(d.x1,d.x2),x2=Math.max(d.x1,d.x2),y1=Math.min(d.y1,d.y2),y2=Math.max(d.y1,d.y2);
-    x1=clamp(x1);x2=clamp(x2);y1=clamp(y1);y2=clamp(y2);
-    if((x2-x1)*S.iw>4&&(y2-y1)*S.ih>4){ pushUndo(); S.boxes.push({cls:S.active,x1,y1,x2,y2});
+    const x1=Math.min(d.x1,d.x2),x2=Math.max(d.x1,d.x2),y1=Math.min(d.y1,d.y2),y2=Math.max(d.y1,d.y2);
+    if((x2-x1)>3&&(y2-y1)>3){ pushUndo();
+      S.boxes.push({cls:S.active, cx:(x1+x2)/2, cy:(y1+y2)/2, w:x2-x1, h:y2-y1, angle:0});
       S.sel=S.boxes.length-1; S.dirty=true; }
     draw(); updateUI(); return; }
-  if(d.mode==="move"||d.mode==="resize"){ const b=S.boxes[S.sel];
-    if(b.x1>b.x2)[b.x1,b.x2]=[b.x2,b.x1]; if(b.y1>b.y2)[b.y1,b.y2]=[b.y2,b.y1];
-    draw(); updateUI(); }
+  if(d.mode==="move"||d.mode==="resize"||d.mode==="rotate"){ draw(); updateUI(); }
 });
-const clamp=v=>Math.max(0,Math.min(1,v));
-cv.addEventListener("wheel",e=>{
-  e.preventDefault(); const r=cv.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
-  const inx=ix(px),iny=iy(py), f=Math.exp(-e.deltaY*0.0015);
-  S.scale*=f; S.zoom*=f; S.ox=px-inx*S.iw*S.scale; S.oy=py-iny*S.ih*S.scale; draw(); updateUI();
-},{passive:false});
+cv.addEventListener("wheel",e=>{ e.preventDefault(); const m=rel(e), inx=ix(m.x),iny=iy(m.y),
+  f=Math.exp(-e.deltaY*0.0015); S.scale*=f; S.zoom*=f; S.ox=m.x-inx*S.scale; S.oy=m.y-iny*S.scale;
+  draw(); updateUI(); },{passive:false});
 
 /* ---------- keys ---------- */
 window.addEventListener("keydown",e=>{
@@ -324,7 +331,6 @@ window.addEventListener("keyup",e=>{ if(e.code==="Space"){ S.space=false; cv.sty
 function setTool(t){ S.tool=t; $("toolDraw").classList.toggle("on",t==="draw");
   $("toolSelect").classList.toggle("on",t==="select"); cv.style.cursor=t==="draw"?"crosshair":"default"; }
 
-/* ---------- buttons ---------- */
 $("prevBtn").onclick=()=>load(S.idx-1);
 $("nextBtn").onclick=()=>load(S.idx+1);
 $("saveBtn").onclick=()=>save();
@@ -334,7 +340,7 @@ $("toolSelect").onclick=()=>setTool("select");
 $("undoBtn").onclick=()=>{ if(S.undo.length){ S.boxes=JSON.parse(S.undo.pop()); S.sel=-1; S.dirty=true; draw(); updateUI(); } };
 $("delBtn").onclick=()=>{ if(S.sel>=0){ pushUndo(); S.boxes.splice(S.sel,1); S.sel=-1; S.dirty=true; draw(); updateUI(); } };
 window.addEventListener("beforeunload",e=>{ if(S.dirty){ e.preventDefault(); e.returnValue=""; } });
-$("hint").textContent="drag to draw • click to select • scroll to zoom • space-drag to pan";
+$("hint").textContent="drag to draw • drag top handle to rotate • corners to resize • scroll zoom • space-drag pan";
 init();
 </script>
 </body>
