@@ -1,0 +1,42 @@
+yellow-token	0.979	192	295	12
+yellow-token	0.978	302	161	4
+yellow-token	0.975	255	287	13
+green-token	0.972	238	251	8
+green-token	0.969	360	234	10
+green-token	0.967	172	396	17
+green-token	0.967	229	190	8
+green-token	0.967	106	256	6
+yellow-token	0.965	314	223	9
+green-token	0.965	350	173	10
+yellow-token	0.963	124	189	6
+green-token	0.962	238	308	13
+green-token	0.957	365	300	15
+yellow-token	0.957	125	305	11
+green-token	0.955	378	371	20
+yellow-token	0.954	184	237	7
+board	0.950	241	270	13
+yellow-token	0.949	386	292	15
+orange-token	0.948	92	307	11
+yellow-token	0.944	267	348	13
+green-token	0.944	106	393	16
+green-token	0.926	172	254	7
+orange-token	0.923	221	362	18
+green-token	0.906	299	233	9
+green-token	0.895	182	313	12
+green-token	0.894	291	176	4
+green-token	0.888	473	173	10
+green-token	0.888	314	361	19
+inner-board	0.887	232	290	13
+green-token	0.860	245	367	18
+green-token	0.840	115	320	11
+green-token	0.838	109	210	6
+green-token	0.814	471	198	10
+orange-token	0.794	165	302	12
+green-token	0.780	465	182	10
+green-token	0.729	88	251	6
+green-token	0.542	79	237	6
+blue-pawn	0.465	216	168	3
+#yellow-token 12 4 13 9 6 11 7 15
+#green-token 8 10 17 6 13 15 20 16 7 9 12 4 19 18 11
+#orange-token 11 18 12
+#blue-pawn 3

@@ -1,0 +1,24 @@
+green-token	0.982	363	236	3
+yellow-token	0.976	306	162	1
+green-token	0.973	232	190	1
+green-token	0.968	109	254	1
+green-token	0.964	354	174	3
+green-token	0.964	368	302	3
+yellow-token	0.962	317	224	1
+yellow-token	0.961	268	348	1
+green-token	0.953	172	393	11
+board	0.953	241	272	1
+green-token	0.944	379	374	13
+green-token	0.942	175	253	1
+yellow-token	0.936	388	295	5
+yellow-token	0.933	123	185	1
+green-token	0.924	295	177	1
+green-token	0.910	315	362	6
+yellow-token	0.908	186	235	1
+inner-board	0.891	240	276	1
+green-token	0.841	246	367	6
+green-token	0.771	109	193	1
+green-token	0.660	475	197	5
+green-token	0.450	472	178	5
+#green-token 3 1 11 13 6 5
+#yellow-token 1 5

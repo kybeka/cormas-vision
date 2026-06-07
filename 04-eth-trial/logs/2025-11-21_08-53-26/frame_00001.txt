@@ -1,0 +1,8 @@
+board	0.961	238	260	18
+inner-board	0.863	235	283	18
+green-token	0.830	472	166	16
+green-token	0.800	475	183	16
+green-token	0.656	475	127	16
+green-token	0.566	471	136	16
+green-token	0.495	475	110	16
+#green-token 16

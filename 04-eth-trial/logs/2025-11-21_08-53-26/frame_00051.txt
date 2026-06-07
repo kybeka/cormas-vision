@@ -1,0 +1,21 @@
+green-token	0.983	235	190	5
+green-token	0.981	242	307	5
+green-token	0.977	243	251	5
+green-token	0.972	365	237	5
+green-token	0.970	247	370	5
+green-token	0.969	118	316	5
+green-token	0.969	182	252	5
+green-token	0.968	111	252	5
+green-token	0.968	316	362	5
+green-token	0.966	299	236	5
+green-token	0.965	107	388	5
+green-token	0.962	172	391	5
+green-token	0.959	185	311	5
+green-token	0.956	112	192	5
+green-token	0.955	379	375	5
+green-token	0.955	369	303	5
+green-token	0.948	357	176	5
+board	0.948	243	267	5
+green-token	0.941	298	177	5
+inner-board	0.901	244	276	5
+#green-token 5

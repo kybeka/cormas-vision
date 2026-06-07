@@ -1,0 +1,7 @@
+board	0.955	245	273	2
+inner-board	0.909	241	278	2
+red-pawn	0.535	18	406	1
+red-pawn	0.507	23	447	1
+green-token	0.486	477	197	4
+#red-pawn 1
+#green-token 4
