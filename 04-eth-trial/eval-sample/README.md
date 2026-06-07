@@ -9,11 +9,12 @@
 ## The job: correct the labels
 The pre-labels are right about the flat tokens but miss almost every standing **pawn**. Correcting them mostly means **adding the missing pawns** (and fixing the odd wrong token). Two ways:
 
-**A) Your inspector** (already wired):
+**A) Your inspector** (already wired). Run it from `03-training/` (it resolves
+`pseudo_iterations/` and `frames.v3i.yolov11/data.yaml` relative to the launch dir):
 ```bash
 conda activate ml
-cd ../../03-training/pseudo_labeling
-python simple_inspector.py -i 90      # iter_90 is symlinked to this sample
+cd ../../03-training
+python pseudo_labeling/simple_inspector.py -i 90   # iter_90 is symlinked to this sample
 # open http://localhost:5000, correct, save
 ```
 
