@@ -25,7 +25,8 @@ OUT_LBL = OUT / "labels"
 
 CLASSES = ['blue-pawn', 'blue-token', 'board', 'green-token', 'hand',
            'inner-board', 'orange-token', 'red-pawn', 'red-token',
-           'white-pawn', 'yellow-pawn', 'yellow-token']
+           'white-pawn', 'yellow-pawn', 'yellow-token',
+           'black-pawn', 'green-pawn', 'orange-pawn', 'pink-pawn']
 
 
 def select_frames():

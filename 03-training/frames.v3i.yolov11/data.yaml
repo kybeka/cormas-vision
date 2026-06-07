@@ -2,8 +2,10 @@ train: ../train/images
 val: ../valid/images
 test: ../test/images
 
-nc: 12
-names: ['blue-pawn', 'blue-token', 'board', 'green-token', 'hand', 'inner-board', 'orange-token', 'red-pawn', 'red-token', 'white-pawn', 'yellow-pawn', 'yellow-token']
+# ids 0-11 are the original schema (unchanged so existing labels stay valid).
+# ids 12-15 are pawn colours discovered later (additive, nothing deleted).
+nc: 16
+names: ['blue-pawn', 'blue-token', 'board', 'green-token', 'hand', 'inner-board', 'orange-token', 'red-pawn', 'red-token', 'white-pawn', 'yellow-pawn', 'yellow-token', 'black-pawn', 'green-pawn', 'orange-pawn', 'pink-pawn']
 
 roboflow:
   workspace: cormasvision

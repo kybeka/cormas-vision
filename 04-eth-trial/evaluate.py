@@ -5,6 +5,10 @@ Evaluate the current model against the corrected ETH sample.
 Run AFTER the labels in eval-sample/labels/ have been corrected to ground truth.
 Prints overall + per-class precision / recall / mAP (the pawn classes are the
 ones to watch).
+
+NOTE: WEIGHTS below is the OLD 12-class model — it cannot score the four new
+pawn classes (ids 12-15). Point WEIGHTS at the retrained 16-class model before
+trusting these numbers.
 """
 from pathlib import Path
 from ultralytics import YOLO
@@ -15,7 +19,8 @@ SAMPLE = HERE / "eval-sample"
 WEIGHTS = HERE.parent / "03-training/pseudo_iterations/iter_02/weights/best.pt"
 CLASSES = ['blue-pawn', 'blue-token', 'board', 'green-token', 'hand',
            'inner-board', 'orange-token', 'red-pawn', 'red-token',
-           'white-pawn', 'yellow-pawn', 'yellow-token']
+           'white-pawn', 'yellow-pawn', 'yellow-token',
+           'black-pawn', 'green-pawn', 'orange-pawn', 'pink-pawn']
 
 
 def main():
