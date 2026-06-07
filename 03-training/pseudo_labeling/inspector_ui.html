@@ -96,9 +96,9 @@
       </div>
       <div class="help">
         <div><span>Draw box</span><kbd>drag</kbd></div>
-        <div><span>Rotate</span><kbd>drag top handle</kbd></div>
-        <div><span>Resize</span><kbd>drag corners</kbd></div>
-        <div><span>Move</span><kbd>drag body</kbd></div>
+        <div><span>Move a corner</span><kbd>drag corner</kbd></div>
+        <div><span>Rotate whole box</span><kbd>drag top handle</kbd></div>
+        <div><span>Move box</span><kbd>drag body</kbd></div>
         <div><span>Pan / Zoom</span><kbd>space-drag / scroll</kbd></div>
         <div><span>Delete</span><kbd>Del</kbd></div>
         <div><span>Reclass selected</span><kbd>hotkey</kbd></div>
@@ -110,11 +110,15 @@
 <script>
 const ITER = parseInt("__ITERATION__") || 0;
 const HOTKEYS = "1234567890qwertyuiop".split("");
-const ROT_OFFSET = 24; // screen px for rotation handle stalk
+const ROT_OFFSET = 34;   // screen px: rotation handle stalk length
+const CORNER = 7;        // screen px: half-size of corner square (=> 14px squares)
+const HIT_CORNER = 13;   // screen px: corner grab radius
+const ROT_R = 9;         // screen px: rotation handle circle radius
+const HIT_ROT = 16;      // screen px: rotation handle grab radius
 const S = {
   classes:[], colors:[], total:0, idx:0,
   img:null, iw:0, ih:0,
-  boxes:[],            // {cls, cx, cy, w, h, angle}  -- all in IMAGE PIXELS, angle radians
+  boxes:[],            // {cls, pts:[[x,y]x4]}  -- image PIXELS, free quad
   active:0, sel:-1, tool:"draw",
   scale:1, zoom:1, ox:0, oy:0,
   dirty:false, undo:[], drag:null, space:false,
@@ -123,20 +127,21 @@ const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
 const $ = id => document.getElementById(id);
 const clamp01 = v => Math.max(0, Math.min(1, v));
 
-/* ---------- geometry ---------- */
-function rot(x,y,a){ const c=Math.cos(a), s=Math.sin(a); return {x:x*c-y*s, y:x*s+y*c}; }
-function corners(b){ // 4 image-pixel points: TL,TR,BR,BL in the box's local order
-  const hw=b.w/2, hh=b.h/2;
-  return [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]].map(([lx,ly])=>{
-    const r=rot(lx,ly,b.angle); return {x:b.cx+r.x, y:b.cy+r.y};
-  });
+/* ---------- geometry (image-pixel space) ---------- */
+function centroid(b){ let x=0,y=0; for(const p of b.pts){x+=p[0];y+=p[1];} return {x:x/4,y:y/4}; }
+function rotateAbout(p,c,d){ const dx=p[0]-c.x, dy=p[1]-c.y, cs=Math.cos(d), sn=Math.sin(d);
+  return [c.x+dx*cs-dy*sn, c.y+dx*sn+dy*cs]; }
+function rotHandle(b){ // outside the pts[0]-pts[1] edge, fixed screen offset
+  const a=b.pts[0], c=b.pts[1], mx=(a[0]+c[0])/2, my=(a[1]+c[1])/2;
+  let ex=c[0]-a[0], ey=c[1]-a[1]; const L=Math.hypot(ex,ey)||1; ex/=L; ey/=L;
+  let nx=ey, ny=-ex; const cen=centroid(b);
+  if((mx+nx-cen.x)**2+(my+ny-cen.y)**2 < (mx-cen.x)**2+(my-cen.y)**2){ nx=-nx; ny=-ny; }
+  const d=ROT_OFFSET/S.scale; return {x:mx+nx*d, y:my+ny*d, ex:mx, ey:my};
 }
-function rotHandle(b){ // image-pixel point above the top edge (offset constant in screen px)
-  const d=b.h/2 + ROT_OFFSET/S.scale, r=rot(0,-d,b.angle);
-  return {x:b.cx+r.x, y:b.cy+r.y};
-}
-function inBox(px,py,b){ const r=rot(px-b.cx, py-b.cy, -b.angle);
-  return Math.abs(r.x)<=b.w/2 && Math.abs(r.y)<=b.h/2; }
+function inBox(px,py,b){ let inside=false, p=b.pts;
+  for(let i=0,j=3;i<4;j=i++){ const xi=p[i][0],yi=p[i][1],xj=p[j][0],yj=p[j][1];
+    if(((yi>py)!=(yj>py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi)) inside=!inside; }
+  return inside; }
 
 /* points(normalized) <-> box(pixels) */
 function toBox(d){
@@ -145,21 +150,15 @@ function toBox(d){
   else if(d.type==="bbox"){ const x=d.x_center*S.iw,y=d.y_center*S.ih,w=d.width*S.iw,h=d.height*S.ih;
     pts=[[x-w/2,y-h/2],[x+w/2,y-h/2],[x+w/2,y+h/2],[x-w/2,y+h/2]]; }
   else return null;
-  const cx=(pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4, cy=(pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4;
-  const w=Math.hypot(pts[1][0]-pts[0][0], pts[1][1]-pts[0][1]);
-  const h=Math.hypot(pts[2][0]-pts[1][0], pts[2][1]-pts[1][1]);
-  const angle=Math.atan2(pts[1][1]-pts[0][1], pts[1][0]-pts[0][0]);
-  return {cls:d.class_id, cx, cy, w:Math.max(w,1), h:Math.max(h,1), angle};
+  return {cls:d.class_id, pts};
 }
-function fromBox(b){
-  const pts=corners(b).map(p=>[clamp01(p.x/S.iw), clamp01(p.y/S.ih)]);
-  return {class_id:b.cls, type:"polygon", points:pts};
-}
+function fromBox(b){ return {class_id:b.cls, type:"polygon",
+  points:b.pts.map(p=>[clamp01(p[0]/S.iw), clamp01(p[1]/S.ih)])}; }
 
 /* ---------- data ---------- */
 async function init(){
-  const r = await fetch(`/api/init/${ITER}`).then(r=>r.json());
-  if(r.error){ $("fname").textContent = "ERROR: "+r.error; return; }
+  const r=await fetch(`/api/init/${ITER}`).then(r=>r.json());
+  if(r.error){ $("fname").textContent="ERROR: "+r.error; return; }
   S.classes=r.class_names; S.colors=r.class_colors; S.total=r.total_images;
   buildPalette(); setActive(firstPawnOr0());
   window.addEventListener("resize", ()=>{ resize(); draw(); });
@@ -216,8 +215,8 @@ function resize(){ const r=$("stage").getBoundingClientRect(), dpr=window.device
 function fit(){ const r=$("stage").getBoundingClientRect();
   const s=Math.min(r.width/S.iw, r.height/S.ih)*0.96;
   S.scale=s; S.zoom=1; S.ox=(r.width-S.iw*s)/2; S.oy=(r.height-S.ih*s)/2; }
-const sx=px=>px*S.scale+S.ox, sy=py=>py*S.scale+S.oy;        // image px -> screen
-const ix=x=>(x-S.ox)/S.scale, iy=y=>(y-S.oy)/S.scale;        // screen -> image px
+const sx=px=>px*S.scale+S.ox, sy=py=>py*S.scale+S.oy;   // image px -> screen
+const ix=x=>(x-S.ox)/S.scale, iy=y=>(y-S.oy)/S.scale;   // screen -> image px
 
 /* ---------- render ---------- */
 function draw(){
@@ -225,7 +224,7 @@ function draw(){
   if(!S.img) return;
   ctx.drawImage(S.img, S.ox, S.oy, S.iw*S.scale, S.ih*S.scale);
   S.boxes.forEach((b,i)=>{
-    const col=S.colors[b.cls]||"#4c8dff", cs=corners(b).map(p=>({x:sx(p.x),y:sy(p.y)})), seld=(i===S.sel);
+    const col=S.colors[b.cls]||"#4c8dff", cs=b.pts.map(p=>({x:sx(p[0]),y:sy(p[1])})), seld=(i===S.sel);
     ctx.lineWidth=seld?2.5:1.5; ctx.strokeStyle=col; ctx.fillStyle=hexA(col,seld?0.18:0.10);
     ctx.beginPath(); ctx.moveTo(cs[0].x,cs[0].y); for(let k=1;k<4;k++) ctx.lineTo(cs[k].x,cs[k].y);
     ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -234,10 +233,13 @@ function draw(){
     ctx.fillStyle=col; ctx.fillRect(cs[0].x-0.75, cs[0].y-15, tw, 15);
     ctx.fillStyle="#0a0c10"; ctx.fillText(t, cs[0].x+4, cs[0].y-4);
     if(seld){
-      const rh=rotHandle(b), rhs={x:sx(rh.x),y:sy(rh.y)}, top={x:(cs[0].x+cs[1].x)/2,y:(cs[0].y+cs[1].y)/2};
-      ctx.strokeStyle=col; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(top.x,top.y); ctx.lineTo(rhs.x,rhs.y); ctx.stroke();
-      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(rhs.x,rhs.y,5,0,7); ctx.fill(); ctx.stroke();
-      cs.forEach(p=>{ ctx.fillStyle="#fff"; ctx.fillRect(p.x-4,p.y-4,8,8); ctx.strokeRect(p.x-4,p.y-4,8,8); });
+      const rh=rotHandle(b), rhs={x:sx(rh.x),y:sy(rh.y)};
+      ctx.strokeStyle=col; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(sx(rh.ex),sy(rh.ey)); ctx.lineTo(rhs.x,rhs.y); ctx.stroke();
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(rhs.x,rhs.y,ROT_R,0,7); ctx.fill();
+      ctx.lineWidth=2; ctx.stroke();
+      cs.forEach(p=>{ ctx.fillStyle="#fff"; ctx.lineWidth=2; ctx.strokeStyle=col;
+        ctx.fillRect(p.x-CORNER,p.y-CORNER,CORNER*2,CORNER*2); ctx.strokeRect(p.x-CORNER,p.y-CORNER,CORNER*2,CORNER*2); });
     }
   });
   if(S.drag&&S.drag.mode==="draw"){ const a=S.drag;
@@ -247,12 +249,12 @@ function draw(){
 }
 function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
 
-/* ---------- hit testing ---------- */
+/* ---------- hit testing (screen space) ---------- */
 function hitHandle(scrX,scrY){
   if(S.sel<0) return null; const b=S.boxes[S.sel];
-  const rh=rotHandle(b); if(Math.hypot(scrX-sx(rh.x),scrY-sy(rh.y))<9) return {type:"rotate"};
-  const cs=corners(b);
-  for(let i=0;i<4;i++) if(Math.abs(scrX-sx(cs[i].x))<8&&Math.abs(scrY-sy(cs[i].y))<8) return {type:"corner",i};
+  for(let i=0;i<4;i++) if(Math.abs(scrX-sx(b.pts[i][0]))<HIT_CORNER&&Math.abs(scrY-sy(b.pts[i][1]))<HIT_CORNER)
+    return {type:"corner",i};
+  const rh=rotHandle(b); if(Math.hypot(scrX-sx(rh.x),scrY-sy(rh.y))<HIT_ROT) return {type:"rotate"};
   return null;
 }
 function topBoxAt(scrX,scrY){ const px=ix(scrX),py=iy(scrY);
@@ -266,13 +268,14 @@ cv.addEventListener("mousedown",e=>{
   const m=rel(e);
   if(S.space||e.button===1){ S.drag={mode:"pan",mx:m.x,my:m.y,ox:S.ox,oy:S.oy}; return; }
   const hh=hitHandle(m.x,m.y);
-  if(hh&&hh.type==="rotate"){ pushUndo(); S.drag={mode:"rotate"}; return; }
-  if(hh&&hh.type==="corner"){ pushUndo(); const b=S.boxes[S.sel], cs=corners(b);
-    S.drag={mode:"resize", fixed:cs[(hh.i+2)%4], angle:b.angle, cls:b.cls}; return; }
+  if(hh&&hh.type==="corner"){ pushUndo(); S.drag={mode:"corner",i:hh.i}; return; }
+  if(hh&&hh.type==="rotate"){ pushUndo(); const b=S.boxes[S.sel], cen=centroid(b);
+    S.drag={mode:"rotate", cen, start:Math.atan2(iy(m.y)-cen.y, ix(m.x)-cen.x),
+      orig:b.pts.map(p=>p.slice())}; return; }
   const hit=topBoxAt(m.x,m.y);
   if(S.tool==="select"){
     if(hit>=0){ S.sel=hit; setActive(S.boxes[hit].cls); pushUndo();
-      S.drag={mode:"move",mx:m.x,my:m.y,b:{...S.boxes[hit]}}; } else S.sel=-1;
+      S.drag={mode:"move",mx:m.x,my:m.y,orig:S.boxes[hit].pts.map(p=>p.slice())}; } else S.sel=-1;
     draw(); updateUI(); return;
   }
   S.drag={mode:"pending",mx:m.x,my:m.y,x1:ix(m.x),y1:iy(m.y),hit};
@@ -280,17 +283,14 @@ cv.addEventListener("mousedown",e=>{
 window.addEventListener("mousemove",e=>{
   const d=S.drag; if(!d) return; const m=rel(e);
   if(d.mode==="pan"){ S.ox=d.ox+(m.x-d.mx); S.oy=d.oy+(m.y-d.my); draw(); return; }
-  if(d.mode==="pending"){ if(Math.hypot(m.x-d.mx,m.y-d.my)>4){ d.mode="draw"; } else return; }
+  if(d.mode==="pending"){ if(Math.hypot(m.x-d.mx,m.y-d.my)>4) d.mode="draw"; else return; }
   if(d.mode==="draw"){ d.x2=ix(m.x); d.y2=iy(m.y); draw(); return; }
+  if(d.mode==="corner"){ S.boxes[S.sel].pts[d.i]=[ix(m.x),iy(m.y)]; S.dirty=true; draw(); return; }
   if(d.mode==="move"){ const dx=(m.x-d.mx)/S.scale, dy=(m.y-d.my)/S.scale, b=S.boxes[S.sel];
-    b.cx=d.b.cx+dx; b.cy=d.b.cy+dy; S.dirty=true; draw(); return; }
-  if(d.mode==="rotate"){ const b=S.boxes[S.sel];
-    b.angle=Math.atan2(iy(m.y)-b.cy, ix(m.x)-b.cx)+Math.PI/2; S.dirty=true; draw(); return; }
-  if(d.mode==="resize"){ const b=S.boxes[S.sel], px=ix(m.x), py=iy(m.y);
-    const a=-d.angle, mL=rot(px,py,a), fL=rot(d.fixed.x,d.fixed.y,a);
-    b.w=Math.max(Math.abs(mL.x-fL.x),1); b.h=Math.max(Math.abs(mL.y-fL.y),1);
-    const cL={x:(mL.x+fL.x)/2,y:(mL.y+fL.y)/2}, cW=rot(cL.x,cL.y,d.angle);
-    b.cx=cW.x; b.cy=cW.y; S.dirty=true; draw(); return; }
+    b.pts=d.orig.map(p=>[p[0]+dx,p[1]+dy]); S.dirty=true; draw(); return; }
+  if(d.mode==="rotate"){ const b=S.boxes[S.sel],
+    ang=Math.atan2(iy(m.y)-d.cen.y, ix(m.x)-d.cen.x)-d.start;
+    b.pts=d.orig.map(p=>rotateAbout(p,d.cen,ang)); S.dirty=true; draw(); return; }
 });
 window.addEventListener("mouseup",()=>{
   const d=S.drag; S.drag=null; if(!d) return;
@@ -298,10 +298,10 @@ window.addEventListener("mouseup",()=>{
   if(d.mode==="draw"){
     const x1=Math.min(d.x1,d.x2),x2=Math.max(d.x1,d.x2),y1=Math.min(d.y1,d.y2),y2=Math.max(d.y1,d.y2);
     if((x2-x1)>3&&(y2-y1)>3){ pushUndo();
-      S.boxes.push({cls:S.active, cx:(x1+x2)/2, cy:(y1+y2)/2, w:x2-x1, h:y2-y1, angle:0});
+      S.boxes.push({cls:S.active, pts:[[x1,y1],[x2,y1],[x2,y2],[x1,y2]]});
       S.sel=S.boxes.length-1; S.dirty=true; }
     draw(); updateUI(); return; }
-  if(d.mode==="move"||d.mode==="resize"||d.mode==="rotate"){ draw(); updateUI(); }
+  if(d.mode==="corner"||d.mode==="move"||d.mode==="rotate"){ draw(); updateUI(); }
 });
 cv.addEventListener("wheel",e=>{ e.preventDefault(); const m=rel(e), inx=ix(m.x),iny=iy(m.y),
   f=Math.exp(-e.deltaY*0.0015); S.scale*=f; S.zoom*=f; S.ox=m.x-inx*S.scale; S.oy=m.y-iny*S.scale;
@@ -340,7 +340,7 @@ $("toolSelect").onclick=()=>setTool("select");
 $("undoBtn").onclick=()=>{ if(S.undo.length){ S.boxes=JSON.parse(S.undo.pop()); S.sel=-1; S.dirty=true; draw(); updateUI(); } };
 $("delBtn").onclick=()=>{ if(S.sel>=0){ pushUndo(); S.boxes.splice(S.sel,1); S.sel=-1; S.dirty=true; draw(); updateUI(); } };
 window.addEventListener("beforeunload",e=>{ if(S.dirty){ e.preventDefault(); e.returnValue=""; } });
-$("hint").textContent="drag to draw • drag top handle to rotate • corners to resize • scroll zoom • space-drag pan";
+$("hint").textContent="drag to draw • drag corners to reshape • top handle to rotate • space-drag pan • scroll zoom";
 init();
 </script>
 </body>
