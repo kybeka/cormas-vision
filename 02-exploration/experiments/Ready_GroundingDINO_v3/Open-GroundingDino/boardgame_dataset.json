@@ -1,0 +1,20 @@
+{
+  "train": [
+    {
+      "dataset_mode": "coco",
+      "root": "../data",
+      "type": "coco_grounding",
+      "anno": "../data/_annotations.coco.json",
+      "img_prefix": "data"
+    }
+  ],
+  "val": [
+    {
+      "dataset_mode": "coco",
+      "root": "../data",
+      "type": "coco_grounding",
+      "anno": "../data/_annotations.coco.json",
+      "img_prefix": "data"
+    }
+  ]
+}

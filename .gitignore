@@ -31,3 +31,15 @@ val/
 runs/
 weights/
 backups/
+# exploration-phase: vendored third-party clones (reproduce from upstream) + heavy media
+02-exploration/**/GroundingDINO/
+02-exploration/**/Open-GroundingDino/
+02-exploration/**/groundingdino/
+02-exploration/**/segment-anything/
+02-exploration/**/*.ipynb
+02-exploration/**/.asset/
+02-exploration/**/assets/
+
+# data blobs / demo captures in early phases
+*.zip
+01-proof-of-concept/**/output/
