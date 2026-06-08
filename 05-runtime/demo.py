@@ -57,6 +57,7 @@ from cv_board_utils import (
     cell_index,
 )
 from board_from_model import board_quad_from_result, order_quad, inset_quad, QuadSmoother
+from json_bridge import write_state
 from cormas_client import CormasClient
 
 
@@ -190,6 +191,7 @@ def main():
     parser.add_argument("--conf", type=float, default=0.45, help="Confidence threshold")
     parser.add_argument("--iou", type=float, default=0.5, help="IoU threshold")
     parser.add_argument("--ws-url", type=str, default=None, help="WebSocket url for CORMAS (e.g., ws://localhost:8081/ws)")
+    parser.add_argument("--json-out", type=str, default=None, help="Directory to write per-session board-state JSON (CORMAS file bridge)")
     args = parser.parse_args()
 
     frames_dir = find_latest_frames_dir(Path(args.frames_dir) if args.frames_dir else None)
@@ -294,6 +296,13 @@ def main():
                                 f.write(f"#{cname} " + " ".join(str(c) for c in cells) + "\n")
                 except Exception as e:
                     print(f"[demo] Failed to append outputs to {txt_path.name}: {e}")
+
+                # Optional: write JSON board state for the CORMAS file bridge
+                if args.json_out:
+                    try:
+                        write_state(args.json_out, session_id, stem, class_groups, args.rows, args.cols)
+                    except Exception as e:
+                        print(f"[demo] JSON write failed: {e}")
 
                 # Optional: send to CORMAS via persistent WebSocket
                 if client:
