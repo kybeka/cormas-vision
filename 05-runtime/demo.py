@@ -297,10 +297,18 @@ def main():
                 except Exception as e:
                     print(f"[demo] Failed to append outputs to {txt_path.name}: {e}")
 
-                # Optional: write JSON board state for the CORMAS file bridge
+                # Optional: write JSON board state (per-cell counts) for the CORMAS file bridge
                 if args.json_out:
+                    cell_counts: Dict[str, Dict[int, int]] = {}
+                    _exclude = {"board", "hand", "inner-board"}
+                    for cell, cls_id in mapped_cells_with_cls:
+                        name = class_names.get(cls_id, str(cls_id)).strip()
+                        if name.lower() in _exclude:
+                            continue
+                        cell_counts.setdefault(name, {})
+                        cell_counts[name][cell] = cell_counts[name].get(cell, 0) + 1
                     try:
-                        write_state(args.json_out, session_id, stem, class_groups, args.rows, args.cols)
+                        write_state(args.json_out, session_id, stem, cell_counts, args.rows, args.cols)
                     except Exception as e:
                         print(f"[demo] JSON write failed: {e}")
 

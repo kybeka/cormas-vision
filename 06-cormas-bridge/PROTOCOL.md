@@ -17,19 +17,21 @@ Two transports carry the **same** board state from the vision runtime to CORMAS:
   "frame": "frame_00090",
   "timestamp": "2026-06-08T01:30:00",
   "grid": { "rows": 5, "cols": 4, "origin": "cell 1 = A1 = top-left, row-major" },
-  "classes": { "green-token": [1, 5, 12], "yellow-token": [3, 9], "blue-pawn": [7] },
+  "classes": { "green-token": {"1":1,"5":3,"12":1}, "yellow-token": {"3":1,"9":2}, "blue-pawn": {"7":1} },
   "semantics": {
-    "biomass":     [1, 5, 12],
-    "birds":       [3, 9],
-    "non_harvest": [],
-    "park_limit":  [],
-    "harvesters":  [ { "player": "blue", "cells": [7] } ]
+    "biomass":     {"1":1,"5":3,"12":1},
+    "birds":       {"3":1,"9":2},
+    "non_harvest": {},
+    "park_limit":  {},
+    "harvesters":  [ { "player": "blue", "cells": {"7":1} } ]
   }
 }
 ```
 
 - **Cells** are `1..20`, row-major on the 5×4 grid: `A1=1, A2=2, A3=3, A4=4, B1=5, … E4=20`.
-- **`classes`** = raw detector output (class name → occupied cells).
+- **`classes`** = raw detector output as **`{cell: count}`** — multiplicity is kept (a cell
+  can hold several pieces, e.g. 3 biomass in cell 5), since the *quantity* is what Planet-C
+  resource dynamics care about, not mere presence.
 - **`semantics`** = the same data mapped to Planet-C meaning, which is what a CORMAS
   model actually wants: biomass / birds / non-harvest / park-limit tokens, and
   harvesters (the standing pawns) keyed by player colour.

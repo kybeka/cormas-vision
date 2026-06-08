@@ -23,19 +23,28 @@ TOKEN_SEMANTICS = {
 }
 
 
-def _semantics(class_groups: Dict[str, List[int]]) -> dict:
-    out = {"biomass": [], "birds": [], "non_harvest": [], "park_limit": [], "harvesters": []}
-    harvesters: Dict[str, List[int]] = {}
-    for cls, cells in class_groups.items():
+# counts: {class_name: {cell: count}} — multiplicity preserved (a cell can hold
+# several pieces; the count is the whole point for Planet-C resource dynamics).
+Counts = Dict[str, Dict[int, int]]
+
+
+def _cells(counts: Dict[int, int]) -> Dict[str, int]:
+    return {str(c): n for c, n in sorted(counts.items())}
+
+
+def _semantics(counts: Counts) -> dict:
+    out = {"biomass": {}, "birds": {}, "non_harvest": {}, "park_limit": {}, "harvesters": []}
+    harvesters: Dict[str, Dict[str, int]] = {}
+    for cls, cells in counts.items():
         if cls in TOKEN_SEMANTICS:
-            out[TOKEN_SEMANTICS[cls]] = sorted(cells)
+            out[TOKEN_SEMANTICS[cls]] = _cells(cells)
         elif cls.endswith("-pawn"):          # harvesters, keyed by player colour
-            harvesters[cls[:-5]] = sorted(cells)
+            harvesters[cls[:-5]] = _cells(cells)
     out["harvesters"] = [{"player": c, "cells": harvesters[c]} for c in sorted(harvesters)]
     return out
 
 
-def build_state(session: str, frame: str, class_groups: Dict[str, List[int]],
+def build_state(session: str, frame: str, counts: Counts,
                 rows: int = 5, cols: int = 4) -> dict:
     return {
         "schema": "planet-c/v1",
@@ -43,17 +52,17 @@ def build_state(session: str, frame: str, class_groups: Dict[str, List[int]],
         "frame": frame,
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "grid": {"rows": rows, "cols": cols, "origin": "cell 1 = A1 = top-left, row-major"},
-        "classes": {k: sorted(v) for k, v in class_groups.items() if v},
-        "semantics": _semantics(class_groups),
+        "classes": {k: _cells(v) for k, v in counts.items() if v},
+        "semantics": _semantics(counts),
     }
 
 
-def write_state(out_dir, session: str, frame: str, class_groups: Dict[str, List[int]],
+def write_state(out_dir, session: str, frame: str, counts: Counts,
                 rows: int = 5, cols: int = 4) -> Path:
     """Atomically write the latest board state to <out_dir>/<session>.json."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    payload = build_state(session, frame, class_groups, rows, cols)
+    payload = build_state(session, frame, counts, rows, cols)
     dest = out_dir / f"{session}.json"
     fd, tmp = tempfile.mkstemp(dir=str(out_dir), suffix=".tmp")
     with os.fdopen(fd, "w") as f:
