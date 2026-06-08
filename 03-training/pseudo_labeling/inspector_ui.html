@@ -102,6 +102,7 @@
         <div><span>Stacked: pick under</span><kbd>click again</kbd></div>
         <div><span>Multi-select</span><kbd>shift-click</kbd></div>
         <div><span>Send back / front</span><kbd>[ / ]</kbd></div>
+        <div><span>Pan / Zoom</span><kbd>2-finger / pinch</kbd></div>
         <div><span>Delete selected</span><kbd>Del</kbd></div>
         <div><span>Reclass selected</span><kbd>hotkey</kbd></div>
         <div><span>Prev / Next / Save</span><kbd>A / D / S</kbd></div>
@@ -305,9 +306,13 @@ window.addEventListener("mouseup",()=>{
     draw(); updateUI(); return; }
   if(d.mode==="corner"||d.mode==="move"||d.mode==="rotate"){ draw(); updateUI(); }
 });
-cv.addEventListener("wheel",e=>{ e.preventDefault(); const m=rel(e), inx=ix(m.x),iny=iy(m.y),
-  f=Math.exp(-e.deltaY*0.0015); S.scale*=f; S.zoom*=f; S.ox=m.x-inx*S.scale; S.oy=m.y-iny*S.scale;
+cv.addEventListener("wheel",e=>{ e.preventDefault();
+  if(e.ctrlKey){ const m=rel(e), inx=ix(m.x),iny=iy(m.y), f=Math.exp(-e.deltaY*0.01);  // pinch / ctrl = zoom
+    S.scale*=f; S.zoom*=f; S.ox=m.x-inx*S.scale; S.oy=m.y-iny*S.scale; }
+  else { S.ox-=e.deltaX; S.oy-=e.deltaY; }                                              // two-finger swipe = pan
   draw(); updateUI(); },{passive:false});
+function zoomBy(f){ const r=$("stage").getBoundingClientRect(), cx=r.width/2, cy=r.height/2,
+  inx=ix(cx),iny=iy(cy); S.scale*=f; S.zoom*=f; S.ox=cx-inx*S.scale; S.oy=cy-iny*S.scale; draw(); updateUI(); }
 
 /* ---------- z-order ---------- */
 function reorder(front){ if(S.sel.length!==1) return; pushUndo(); const i=S.sel[0], b=S.boxes.splice(i,1)[0];
@@ -327,6 +332,8 @@ window.addEventListener("keydown",e=>{
   if(k==="arrowleft"||k==="a"){ load(S.idx-1); return; }
   if(k==="s"){ save(); return; }
   if(k==="f"){ fit(); draw(); updateUI(); return; }
+  if(k==="="||k==="+"){ zoomBy(1.15); return; }
+  if(k==="-"){ zoomBy(1/1.15); return; }
   if(k==="b"){ setTool("draw"); return; }
   if(k==="v"){ setTool("select"); return; }
   if(k==="["){ reorder(false); return; }
@@ -349,7 +356,7 @@ $("toolSelect").onclick=()=>setTool("select");
 $("undoBtn").onclick=()=>{ if(S.undo.length){ S.boxes=JSON.parse(S.undo.pop()); S.sel=[]; S.dirty=true; draw(); updateUI(); } };
 $("delBtn").onclick=delSel;
 window.addEventListener("beforeunload",e=>{ if(S.dirty){ e.preventDefault(); e.returnValue=""; } });
-$("hint").textContent="drag draw • corners reshape • shift-click multi • click again = pick under • [ ] back/front";
+$("hint").textContent="drag draw • corners reshape • shift-click multi • 2-finger pan • pinch zoom";
 init();
 </script>
 </body>

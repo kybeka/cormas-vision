@@ -183,8 +183,10 @@ def main():
     parser = argparse.ArgumentParser(description="Planet-C demo runner")
     parser.add_argument("--frames-dir", type=str, default=None, help="Path to frames directory (defaults to latest phone-server folder)")
     parser.add_argument("--weights", type=str, default=None, help="YOLO weights path")
-    parser.add_argument("--rows", type=int, default=4, help="Board rows (default 4)")
-    parser.add_argument("--cols", type=int, default=5, help="Board cols (default 5)")
+    # Planet-C grid: 5 rows (A-E) x 4 cols (1-4). Cell 1 = A1 = inner-board top-left
+    # corner (order_quad anchors TL), so numbering is row-major A1,A2..A4,B1..E4.
+    parser.add_argument("--rows", type=int, default=5, help="Board rows A-E (default 5)")
+    parser.add_argument("--cols", type=int, default=4, help="Board cols 1-4 (default 4)")
     parser.add_argument("--conf", type=float, default=0.45, help="Confidence threshold")
     parser.add_argument("--iou", type=float, default=0.5, help="IoU threshold")
     parser.add_argument("--ws-url", type=str, default=None, help="WebSocket url for CORMAS (e.g., ws://localhost:8081/ws)")
