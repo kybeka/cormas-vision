@@ -47,6 +47,7 @@ except ImportError:
 PROJECT_ROOT = Path(__file__).resolve().parent
 PHONE_SERVER_DIR = PROJECT_ROOT / "phone-server"
 INFERENCE_TXT_DIR = PROJECT_ROOT / "inference_txt"
+BOARD_INSET = 0.03  # shrink the inner-board box onto the painted grid lines
 
 from cv_board_utils import (
     detect_board_edges_and_quad,
@@ -55,6 +56,7 @@ from cv_board_utils import (
     transform_point,
     cell_index,
 )
+from board_from_model import board_quad_from_result, order_quad, inset_quad, QuadSmoother
 from cormas_client import CormasClient
 
 
@@ -212,6 +214,7 @@ def main():
 
     print(f"[demo] Watching for new frames in: {frames_dir}")
     processed = set()
+    board_smoother = QuadSmoother(0.35)
     try:
         while True:
             images = list_images(frames_dir)
@@ -242,9 +245,18 @@ def main():
                 except Exception:
                     annotated = img.copy()
 
-                # Board detection, edges visualization, and homography
-                edges_img, quad = detect_board_edges_and_quad(img)
-                H = compute_homography(quad) if quad is not None else None
+                # Board detection: prefer the model's inner-board OBB (far steadier than
+                # Canny), fall back to Canny, then smooth across frames and inset onto the grid.
+                edges_img, canny_quad = detect_board_edges_and_quad(img)
+                board_quad = board_quad_from_result(r)
+                if board_quad is None and canny_quad is not None:
+                    board_quad = order_quad(canny_quad)
+                board_quad = board_smoother.update(board_quad)
+                if board_quad is not None:
+                    board_quad = inset_quad(board_quad, BOARD_INSET)
+                    H = compute_homography(board_quad)
+                else:
+                    H = None
                 mapped_cells_with_cls: List[Tuple[int, int]] = []
                 mapped_cells_dict: Dict[Tuple[int, int, int], int] = {}
                 if H is None:

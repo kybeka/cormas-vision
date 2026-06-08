@@ -42,6 +42,15 @@ def board_quad_from_result(result, prefer=("inner-board", "board")) -> Optional[
     return None
 
 
+def inset_quad(quad: Optional[np.ndarray], frac: float = 0.0) -> Optional[np.ndarray]:
+    """Shrink the quad toward its centre by `frac` (e.g. 0.04) so a loose
+    inner-board box lands on the painted grid lines."""
+    if quad is None or frac == 0.0:
+        return quad
+    c = quad.mean(axis=0)
+    return (c + (1.0 - frac) * (quad - c)).astype(np.float32)
+
+
 class QuadSmoother:
     """Exponential moving average of an ordered quad across frames."""
     def __init__(self, alpha: float = 0.35):
