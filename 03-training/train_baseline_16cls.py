@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+"""
+First real 16-class baseline.
+
+Trains YOLO11-OBB on the existing labelled frames (old-schema labels are valid
+under the additive 16-class data.yaml). Heavier rotation + HSV augmentation than
+before, to test whether augmentation helps the tilted-board / lighting issues.
+
+Expected: good on tokens, ~0 on pawns (no pawn labels in this training data) —
+this is the BASELINE the Oleks labelling round is measured against.
+Evaluate afterwards with 04-eth-trial/evaluate.py pointed at the new weights.
+"""
+import os
+from pathlib import Path
+import torch
+from ultralytics import YOLO
+
+os.chdir(Path(__file__).resolve().parent)
+device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
+print(f"device: {device}")
+
+model = YOLO("yolo11m-obb.pt")
+results = model.train(
+    data="frames.v3i.yolov11/data.yaml",
+    project="runs/baseline_16cls", name="train", exist_ok=True,
+    epochs=80, imgsz=640, batch=8, patience=20, device=device,
+    # augmentation: rotation (tilted boards) + HSV (lighting robustness)
+    degrees=15.0, scale=0.5, translate=0.1, fliplr=0.5,
+    hsv_h=0.015, hsv_s=0.7, hsv_v=0.4,
+    dropout=0.1, plots=True, verbose=True,
+)
+print(f"BASELINE DONE. best weights: {results.save_dir}/weights/best.pt")
