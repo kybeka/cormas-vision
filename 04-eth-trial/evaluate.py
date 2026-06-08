@@ -16,7 +16,9 @@ import yaml
 
 HERE = Path(__file__).resolve().parent
 SAMPLE = HERE / "eval-sample"
-WEIGHTS = HERE.parent / "03-training/pseudo_iterations/iter_02/weights/best.pt"
+# newest trained model under 03-training (skips backups) — auto-picks the latest retrain
+_cands = [c for c in (HERE.parent / "03-training").rglob("weights/best.pt") if "backup" not in str(c)]
+WEIGHTS = max(_cands, key=lambda p: p.stat().st_mtime) if _cands else None
 CLASSES = ['blue-pawn', 'blue-token', 'board', 'green-token', 'hand',
            'inner-board', 'orange-token', 'red-pawn', 'red-token',
            'white-pawn', 'yellow-pawn', 'yellow-token',
@@ -24,7 +26,7 @@ CLASSES = ['blue-pawn', 'blue-token', 'board', 'green-token', 'hand',
 
 
 def main():
-    data = {"path": str(SAMPLE), "val": "images",
+    data = {"path": str(SAMPLE.resolve()), "train": "images", "val": "images",
             "names": {i: n for i, n in enumerate(CLASSES)}}
     yml = SAMPLE / "_auto.yaml"
     yml.write_text(yaml.safe_dump(data))

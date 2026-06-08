@@ -24,8 +24,11 @@ results = model.train(
     data="frames.v3i.yolov11/data.yaml",
     project="runs/baseline_16cls", name="train", exist_ok=True,
     epochs=80, imgsz=640, batch=8, patience=20, device=device,
-    # augmentation: rotation (tilted boards) + HSV (lighting robustness)
-    degrees=15.0, scale=0.5, translate=0.1, fliplr=0.5,
+    # augmentation: HSV (lighting robustness) + scale/translate/flip.
+    # NOTE: degrees>0 (rotation aug) triggers a known ultralytics OBB assigner crash
+    # on dense rotated boxes (shape mismatch in tal.py) — keep it at 0. Tilted-board
+    # robustness comes from real data (ETH/diverse frames), not rotation aug.
+    degrees=0.0, scale=0.5, translate=0.1, fliplr=0.5,
     hsv_h=0.015, hsv_s=0.7, hsv_v=0.4,
     dropout=0.1, plots=True, verbose=True,
 )
