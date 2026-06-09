@@ -16,6 +16,11 @@ import torch
 from ultralytics import YOLO
 
 os.chdir(Path(__file__).resolve().parent)
+# Consolidate every training run into ONE MLflow experiment so retrains are
+# directly comparable (ultralytics auto-logs when mlflow is installed).
+# View with:  mlflow ui --backend-store-uri 03-training/mlruns
+os.environ.setdefault("MLFLOW_TRACKING_URI", f"file:{Path.cwd() / 'mlruns'}")
+os.environ.setdefault("MLFLOW_EXPERIMENT_NAME", "planet-c-detection")
 device = "mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu")
 print(f"device: {device}")
 
