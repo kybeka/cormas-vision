@@ -18,6 +18,8 @@ Usage:
 """
 import argparse
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 import cv2
 import numpy as np
@@ -27,22 +29,44 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "05-runtime"))
 from board_from_model import board_quad_from_result, order_quad  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_W = HERE / "pseudo_iterations/iter_02/weights/best.pt"
+_W = [c for c in HERE.rglob("weights/best.pt") if "backup" not in str(c)]
+DEFAULT_W = max(_W, key=lambda p: p.stat().st_mtime) if _W else HERE / "pseudo_iterations/iter_02/weights/best.pt"
 INNER_BOARD_ID = 5  # class id in the schema
 
 
 def select_from_video(video: Path, n: int):
     cap = cv2.VideoCapture(str(video))
-    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-    idxs = np.linspace(0, total - 1, n, dtype=int)
+    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frames = []
-    for i in idxs:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, int(i))
-        ok, img = cap.read()
-        if ok:
-            frames.append((f"frame_{int(i):06d}", img))
+    if total > 0:
+        for i in np.linspace(0, total - 1, n, dtype=int):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(i))
+            ok, img = cap.read()
+            if ok:
+                frames.append((f"frame_{int(i):06d}", img))
     cap.release()
-    return frames
+    if frames:
+        return frames
+    # OpenCV couldn't decode (e.g. HEVC / .TS) -> fall back to ffmpeg
+    print("[sampler] OpenCV couldn't read the video; using ffmpeg")
+    return _ffmpeg_extract(video, n)
+
+
+def _ffmpeg_extract(video: Path, n: int):
+    dur = float(subprocess.check_output(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=nw=1:nk=1", str(video)]).decode().strip())
+    out = []
+    with tempfile.TemporaryDirectory() as td:
+        tmp = str(Path(td) / "f.jpg")
+        for t in np.linspace(0, dur * 0.99, n):
+            subprocess.run(["ffmpeg", "-y", "-ss", f"{t:.2f}", "-i", str(video),
+                            "-frames:v", "1", "-q:v", "2", tmp],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            img = cv2.imread(tmp)
+            if img is not None:
+                out.append((f"oleks_t{int(t):05d}s", img))
+    return out
 
 
 def select_from_dir(d: Path, n: int):
