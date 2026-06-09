@@ -51,3 +51,10 @@ backups/
 # mlflow tracking (run artifacts — keep local, not in git)
 mlruns/
 **/mlruns/
+
+# consolidated local-only + media artifacts (not for git)
+_local/
+04-eth-trial/media/
+# reference PDFs/diagrams — kept on disk, not in git
+docs/game-info/
+docs/architecture.drawio
