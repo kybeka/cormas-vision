@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Label Inspector</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%230f1115'/%3E%3Crect x='2.5' y='2.5' width='11' height='11' rx='2' fill='none' stroke='%234c8dff' stroke-width='1.6'/%3E%3Crect x='6' y='6' width='4' height='4' rx='1' fill='%2322c55e'/%3E%3C/svg%3E">
+
 <style>
   :root{
     --bg:#0f1115; --panel:#171a21; --panel2:#1f242d; --line:#2a313c;
@@ -91,6 +93,7 @@
         <button class="btn" id="toolSelect" title="Select / move (V)">⬚ Select (V)</button>
       </div>
       <div class="nav">
+        <button class="btn" id="copyBtn" title="Copy labels from the previous frame (C)">⎘ Copy prev</button>
         <button class="btn" id="undoBtn" title="Undo (⌘/Ctrl+Z)">↶ Undo</button>
         <button class="btn" id="delBtn" title="Delete selected (Del)">🗑 Delete</button>
       </div>
@@ -101,6 +104,7 @@
         <div><span>Rotate</span><kbd>top handle</kbd></div>
         <div><span>Stacked: pick under</span><kbd>click again</kbd></div>
         <div><span>Multi-select</span><kbd>shift-click</kbd></div>
+        <div><span>Copy from prev frame</span><kbd>C</kbd></div>
         <div><span>Send back / front</span><kbd>[ / ]</kbd></div>
         <div><span>Pan / Zoom</span><kbd>2-finger / pinch</kbd></div>
         <div><span>Delete selected</span><kbd>Del</kbd></div>
@@ -336,6 +340,7 @@ window.addEventListener("keydown",e=>{
   if(k==="-"){ zoomBy(1/1.15); return; }
   if(k==="b"){ setTool("draw"); return; }
   if(k==="v"){ setTool("select"); return; }
+  if(k==="c"){ copyPrev(); return; }
   if(k==="["){ reorder(false); return; }
   if(k==="]"){ reorder(true); return; }
   if(k==="escape"){ S.sel=[]; draw(); updateUI(); return; }
@@ -353,6 +358,15 @@ $("saveBtn").onclick=()=>save();
 $("fitBtn").onclick=()=>{ fit(); draw(); updateUI(); };
 $("toolDraw").onclick=()=>setTool("draw");
 $("toolSelect").onclick=()=>setTool("select");
+async function copyPrev(){            // pull the previous frame's labels onto this one (Roboflow-style)
+  if(S.idx<=0) return;
+  const r=await fetch(`/api/image/${S.idx-1}`).then(r=>r.json());
+  if(!r.detections) return;
+  pushUndo();
+  S.boxes=r.detections.map(toBox).filter(Boolean);
+  S.sel=[]; S.dirty=true; draw(); updateUI();
+}
+$("copyBtn").onclick=copyPrev;
 $("undoBtn").onclick=()=>{ if(S.undo.length){ S.boxes=JSON.parse(S.undo.pop()); S.sel=[]; S.dirty=true; draw(); updateUI(); } };
 $("delBtn").onclick=delSel;
 window.addEventListener("beforeunload",e=>{ if(S.dirty){ e.preventDefault(); e.returnValue=""; } });
