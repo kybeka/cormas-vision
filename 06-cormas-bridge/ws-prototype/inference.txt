@@ -1,0 +1,7 @@
+ x1y1 -> blue h
+x1y2 -> red h
+x3y1 -> blue h
+x4y3 -> red h
+x3y3 -> blue h
+x2y4 -> red h
+x2y1 -> blue h
