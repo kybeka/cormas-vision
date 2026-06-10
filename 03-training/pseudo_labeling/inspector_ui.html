@@ -283,6 +283,11 @@ cv.addEventListener("mousedown",e=>{
     else S.sel=[];
     draw(); updateUI(); return;
   }
+  // draw tool: shift toggles; on a box -> select + drag-to-move; on empty -> draw
+  if(e.shiftKey){ toggleSel(list[0]); draw(); updateUI(); return; }
+  if(list.length){ const pick=pickCycle(list); if(!selHas(pick)){ S.sel=[pick]; setActive(S.boxes[pick].cls); }
+    pushUndo(); S.drag={mode:"move",mx:m.x,my:m.y,orig:S.sel.map(s=>({i:s,pts:S.boxes[s].pts.map(q=>q.slice())}))};
+    draw(); updateUI(); return; }
   S.drag={mode:"pending",mx:m.x,my:m.y,x1:ix(m.x),y1:iy(m.y),list,shift:e.shiftKey};
 });
 function toggleSel(i){ if(i===undefined) return; const k=S.sel.indexOf(i); if(k>=0) S.sel.splice(k,1); else S.sel.push(i);
@@ -370,7 +375,7 @@ $("copyBtn").onclick=copyPrev;
 $("undoBtn").onclick=()=>{ if(S.undo.length){ S.boxes=JSON.parse(S.undo.pop()); S.sel=[]; S.dirty=true; draw(); updateUI(); } };
 $("delBtn").onclick=delSel;
 window.addEventListener("beforeunload",e=>{ if(S.dirty){ e.preventDefault(); e.returnValue=""; } });
-$("hint").textContent="drag draw • corners reshape • shift-click multi • 2-finger pan • pinch zoom";
+$("hint").textContent="drag empty = draw • drag a box = move • corners reshape • shift-click multi • pinch zoom";
 init();
 </script>
 </body>
