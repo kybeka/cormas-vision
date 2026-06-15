@@ -102,9 +102,10 @@
         <div><span>Draw box</span><kbd>drag</kbd></div>
         <div><span>Move corner / box</span><kbd>drag</kbd></div>
         <div><span>Rotate</span><kbd>top handle</kbd></div>
-        <div><span>Stacked: pick under</span><kbd>click again</kbd></div>
+        <div><span>Overlap: grabs smallest</span><kbd>auto</kbd></div>
         <div><span>Multi-select</span><kbd>shift-click</kbd></div>
-        <div><span>Copy from prev frame</span><kbd>C</kbd></div>
+        <div><span>Copy active class ← prev</span><kbd>C</kbd></div>
+        <div><span>Copy all ← prev frame</span><kbd>⇧C</kbd></div>
         <div><span>Send back / front</span><kbd>[ / ]</kbd></div>
         <div><span>Pan / Zoom</span><kbd>2-finger / pinch</kbd></div>
         <div><span>Delete selected</span><kbd>Del</kbd></div>
@@ -229,9 +230,14 @@ function draw(){
   const sole=single();
   S.boxes.forEach((b,i)=>{
     const col=S.colors[b.cls]||"#4c8dff", cs=b.pts.map(p=>({x:sx(p[0]),y:sy(p[1])})), seld=selHas(i);
-    ctx.lineWidth=seld?2.5:1.5; ctx.strokeStyle=col; ctx.fillStyle=hexA(col,seld?0.20:0.10);
+    ctx.lineWidth=seld?3:1.5; ctx.strokeStyle=col; ctx.fillStyle=hexA(col,seld?0.32:0.10);
     ctx.beginPath(); ctx.moveTo(cs[0].x,cs[0].y); for(let k=1;k<4;k++) ctx.lineTo(cs[k].x,cs[k].y);
     ctx.closePath(); ctx.fill(); ctx.stroke();
+    if(seld){   // make every selected box obvious: white dashed overlay + a marker dot
+      ctx.save(); ctx.strokeStyle="#fff"; ctx.lineWidth=1.2; ctx.setLineDash([5,3]); ctx.stroke(); ctx.setLineDash([]);
+      const mx=(cs[0].x+cs[1].x+cs[2].x+cs[3].x)/4, my=(cs[0].y+cs[1].y+cs[2].y+cs[3].y)/4;
+      ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(mx,my,5,0,7); ctx.fill();
+      ctx.fillStyle=col; ctx.beginPath(); ctx.arc(mx,my,2.6,0,7); ctx.fill(); ctx.restore(); }
     const t=S.classes[b.cls]||b.cls; ctx.font="11px -apple-system,sans-serif";
     ctx.fillStyle=col; ctx.fillRect(cs[0].x-0.75, cs[0].y-15, ctx.measureText(t).width+10, 15);
     ctx.fillStyle="#0a0c10"; ctx.fillText(t, cs[0].x+4, cs[0].y-4);
@@ -259,13 +265,17 @@ function hitHandle(scrX,scrY){
   const rh=rotHandle(b); if(Math.hypot(scrX-sx(rh.x),scrY-sy(rh.y))<HIT_ROT) return {type:"rotate"};
   return null;
 }
+function boxArea(b){ const xs=b.pts.map(p=>p[0]), ys=b.pts.map(p=>p[1]);
+  return (Math.max(...xs)-Math.min(...xs))*(Math.max(...ys)-Math.min(...ys)); }
 function boxesUnder(scrX,scrY){ const px=ix(scrX),py=iy(scrY), out=[];
-  for(let i=S.boxes.length-1;i>=0;i--) if(inBox(px,py,S.boxes[i])) out.push(i); return out; }
+  for(let i=S.boxes.length-1;i>=0;i--) if(inBox(px,py,S.boxes[i])) out.push(i);
+  out.sort((a,b)=>boxArea(S.boxes[a])-boxArea(S.boxes[b]));   // smallest first: grab the piece, not the board
+  return out; }
 function pickCycle(list){ if(S.sel.length===1){ const k=list.indexOf(S.sel[0]); if(k>=0) return list[(k+1)%list.length]; }
   return list[0]; }
 
 /* ---------- interaction ---------- */
-function pushUndo(){ S.undo.push(JSON.stringify(S.boxes)); if(S.undo.length>50) S.undo.shift(); }
+function pushUndo(){ S.undo.push(JSON.stringify(S.boxes)); if(S.undo.length>200) S.undo.shift(); }
 function rel(e){ const r=cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
 
 cv.addEventListener("mousedown",e=>{
@@ -278,15 +288,15 @@ cv.addEventListener("mousedown",e=>{
   const list=boxesUnder(m.x,m.y);
   if(S.tool==="select"){
     if(e.shiftKey){ toggleSel(list[0]); draw(); updateUI(); return; }
-    if(list.length){ const pick=pickCycle(list); if(!selHas(pick)){ S.sel=[pick]; setActive(S.boxes[pick].cls); }
-      pushUndo(); S.drag={mode:"move",mx:m.x,my:m.y,orig:S.sel.map(s=>({i:s,pts:S.boxes[s].pts.map(q=>q.slice())}))}; }
+    if(list.length){ const pick=list.includes(single())?single():list[0]; if(!selHas(pick)){ S.sel=[pick]; setActive(S.boxes[pick].cls); }
+      S.drag={mode:"move",mx:m.x,my:m.y,snap:JSON.stringify(S.boxes),orig:S.sel.map(s=>({i:s,pts:S.boxes[s].pts.map(q=>q.slice())}))}; }
     else S.sel=[];
     draw(); updateUI(); return;
   }
   // draw tool: shift toggles; on a box -> select + drag-to-move; on empty -> draw
   if(e.shiftKey){ toggleSel(list[0]); draw(); updateUI(); return; }
-  if(list.length){ const pick=pickCycle(list); if(!selHas(pick)){ S.sel=[pick]; setActive(S.boxes[pick].cls); }
-    pushUndo(); S.drag={mode:"move",mx:m.x,my:m.y,orig:S.sel.map(s=>({i:s,pts:S.boxes[s].pts.map(q=>q.slice())}))};
+  if(list.length){ const pick=list.includes(single())?single():list[0]; if(!selHas(pick)){ S.sel=[pick]; setActive(S.boxes[pick].cls); }
+    S.drag={mode:"move",mx:m.x,my:m.y,snap:JSON.stringify(S.boxes),orig:S.sel.map(s=>({i:s,pts:S.boxes[s].pts.map(q=>q.slice())}))};
     draw(); updateUI(); return; }
   S.drag={mode:"pending",mx:m.x,my:m.y,x1:ix(m.x),y1:iy(m.y),list,shift:e.shiftKey};
 });
@@ -298,7 +308,8 @@ window.addEventListener("mousemove",e=>{
   if(d.mode==="pending"){ if(Math.hypot(m.x-d.mx,m.y-d.my)>4) d.mode="draw"; else return; }
   if(d.mode==="draw"){ d.x2=ix(m.x); d.y2=iy(m.y); draw(); return; }
   if(d.mode==="corner"){ S.boxes[d.sidx].pts[d.i]=[ix(m.x),iy(m.y)]; S.dirty=true; draw(); return; }
-  if(d.mode==="move"){ const dx=(m.x-d.mx)/S.scale, dy=(m.y-d.my)/S.scale;
+  if(d.mode==="move"){ if(!d.pushed){ S.undo.push(d.snap); if(S.undo.length>200) S.undo.shift(); d.pushed=true; }
+    const dx=(m.x-d.mx)/S.scale, dy=(m.y-d.my)/S.scale;
     d.orig.forEach(o=>{ S.boxes[o.i].pts=o.pts.map(q=>[q[0]+dx,q[1]+dy]); }); S.dirty=true; draw(); return; }
   if(d.mode==="rotate"){ const b=S.boxes[d.sidx], ang=Math.atan2(iy(m.y)-d.cen.y, ix(m.x)-d.cen.x)-d.start;
     b.pts=d.orig.map(q=>rotateAbout(q,d.cen,ang)); S.dirty=true; draw(); return; }
@@ -345,7 +356,7 @@ window.addEventListener("keydown",e=>{
   if(k==="-"){ zoomBy(1/1.15); return; }
   if(k==="b"){ setTool("draw"); return; }
   if(k==="v"){ setTool("select"); return; }
-  if(k==="c"){ copyPrev(); return; }
+  if(k==="c"){ copyPrev(e.shiftKey); return; }
   if(k==="["){ reorder(false); return; }
   if(k==="]"){ reorder(true); return; }
   if(k==="escape"){ S.sel=[]; draw(); updateUI(); return; }
@@ -363,15 +374,17 @@ $("saveBtn").onclick=()=>save();
 $("fitBtn").onclick=()=>{ fit(); draw(); updateUI(); };
 $("toolDraw").onclick=()=>setTool("draw");
 $("toolSelect").onclick=()=>setTool("select");
-async function copyPrev(){            // pull the previous frame's labels onto this one (Roboflow-style)
+async function copyPrev(allClasses){  // C = sync only the ACTIVE class from prev frame; Shift+C = copy ALL
   if(S.idx<=0) return;
   const r=await fetch(`/api/image/${S.idx-1}`).then(r=>r.json());
   if(!r.detections) return;
+  const prev=r.detections.map(toBox).filter(Boolean);
   pushUndo();
-  S.boxes=r.detections.map(toBox).filter(Boolean);
+  if(allClasses) S.boxes=prev;
+  else S.boxes=S.boxes.filter(b=>b.cls!==S.active).concat(prev.filter(b=>b.cls===S.active));
   S.sel=[]; S.dirty=true; draw(); updateUI();
 }
-$("copyBtn").onclick=copyPrev;
+$("copyBtn").onclick=()=>copyPrev(false);
 $("undoBtn").onclick=()=>{ if(S.undo.length){ S.boxes=JSON.parse(S.undo.pop()); S.sel=[]; S.dirty=true; draw(); updateUI(); } };
 $("delBtn").onclick=delSel;
 window.addEventListener("beforeunload",e=>{ if(S.dirty){ e.preventDefault(); e.returnValue=""; } });
