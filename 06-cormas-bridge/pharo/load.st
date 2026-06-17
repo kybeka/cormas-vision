@@ -31,3 +31,14 @@ Metacello new
      baseline: 'CormasVision';
      repository: 'tonel:///path/to/cormas-vision/06-cormas-bridge/pharo';
      load."
+
+"3. Wire bridge to the running model (paste in a Playground after Initialize simulation):
+
+  | bridge |
+  bridge := CVBridge
+    onModel: (PCModel allInstances first)
+    port: 8080.
+  bridge start.
+
+  'Bridge running — connect demo.py WebSocket client to ws://localhost:8080/ws'
+"
