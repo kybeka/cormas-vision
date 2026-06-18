@@ -158,12 +158,14 @@ class Pipeline:
 
     def __init__(self, weights: Path, rows: int = 5, cols: int = 4, conf: float = 0.45,
                  iou: float = 0.5, inset: float = BOARD_INSET,
-                 json_out: Optional[str] = None, ws_url: Optional[str] = None):
+                 json_out: Optional[str] = None, ws_url: Optional[str] = None,
+                 delay: float = 0.0):
         if YOLO is None:
             raise RuntimeError("Ultralytics not installed. Run: pip install ultralytics")
         self.model = YOLO(str(weights))
         self.rows, self.cols, self.conf, self.iou, self.inset = rows, cols, conf, iou, inset
         self.json_out = json_out
+        self.delay = delay
         self.smoother = QuadSmoother(0.35)
         self.client: Optional[CormasClient] = CormasClient(ws_url) if ws_url else None
         if self.client:
@@ -238,6 +240,8 @@ class Pipeline:
             if o.H is None:
                 print(f"[demo] Board not detected in {img_path.name}; mapping skipped.")
             self.emit(out_dir, session_id, img_path.name, o)
+            if self.delay:
+                time.sleep(self.delay)
 
     def watch(self, frames_dir: Path, out_dir: Path, session_id: str) -> None:
         print(f"[demo] Watching for new frames in: {frames_dir}")
@@ -282,6 +286,7 @@ def main():
     p.add_argument("--ws-url", type=str, default=None, help="WebSocket url for CORMAS (e.g. ws://localhost:8081/ws)")
     p.add_argument("--json-out", type=str, default=None, help="Directory for per-session board-state JSON (CORMAS file bridge)")
     p.add_argument("--once", action="store_true", help="Process the folder once and exit (no watch loop)")
+    p.add_argument("--delay", type=float, default=0.0, help="Seconds to pause between frames (default 0)")
     args = p.parse_args()
 
     frames_dir = find_latest_frames_dir(Path(args.frames_dir) if args.frames_dir else None)
@@ -295,7 +300,7 @@ def main():
     print(f"[demo] Grid: {args.rows}x{args.cols} (cell 1 = A1, top-left)")
 
     pipe = Pipeline(weights_path, rows=args.rows, cols=args.cols, conf=args.conf, iou=args.iou,
-                    json_out=args.json_out, ws_url=args.ws_url)
+                    json_out=args.json_out, ws_url=args.ws_url, delay=args.delay)
     try:
         if args.once:
             pipe.run_once(frames_dir, out_dir, session_id)
