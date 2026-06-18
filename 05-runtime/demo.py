@@ -12,7 +12,7 @@ Usage:
   python demo.py                                  # watch the latest phone-server session
   python demo.py --frames-dir <dir> --once        # process a folder once and exit
   python demo.py --json-out cormas_state          # also write the CORMAS JSON bridge
-  python demo.py --ws-url ws://localhost:8081/ws   # also stream over WebSocket
+  python demo.py --ws-url ws://localhost:8080/ws   # also stream over WebSocket (CMGameServer default)
 """
 from __future__ import annotations
 
@@ -221,7 +221,7 @@ class Pipeline:
                 print(f"[demo] JSON write failed: {e}")
         if self.client:
             try:
-                self.client.send_class_map(groups)
+                self.client.send_frame(groups)
             except Exception as e:
                 print(f"[demo] WS send failed: {e}")
 
@@ -279,7 +279,7 @@ def main():
     p.add_argument("--cols", type=int, default=4, help="Board cols 1-4 (default 4)")
     p.add_argument("--conf", type=float, default=0.45, help="Confidence threshold")
     p.add_argument("--iou", type=float, default=0.5, help="IoU threshold")
-    p.add_argument("--ws-url", type=str, default=None, help="WebSocket url for CORMAS (e.g. ws://localhost:8081/ws)")
+    p.add_argument("--ws-url", type=str, default=None, help="WebSocket url for CORMAS (e.g. ws://localhost:8080/ws)")
     p.add_argument("--json-out", type=str, default=None, help="Directory for per-session board-state JSON (CORMAS file bridge)")
     p.add_argument("--once", action="store_true", help="Process the folder once and exit (no watch loop)")
     args = p.parse_args()

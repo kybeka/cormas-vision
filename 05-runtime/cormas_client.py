@@ -51,7 +51,7 @@ class CormasClient:
             try:
                 async with websockets.connect(self.ws_url, max_size=1_000_000) as ws:
                     try:
-                        await ws.send(json.dumps({"type": "bonjour"}))
+                        await ws.send(json.dumps({"type": "bonjour", "id": "cv-demo"}))
                         print("[cormas] Connected and handshook.")
                     except Exception as e:
                         print(f"[cormas] Handshake failed: {e}")
@@ -72,6 +72,22 @@ class CormasClient:
                 print(f"[cormas] Connect failed: {e}")
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 10.0)
+
+    # classes that represent harvesters (pawns) on the board
+    PAWN_CLASSES = {"blue-pawn", "red-pawn", "white-pawn", "yellow-pawn",
+                    "black-pawn", "green-pawn", "orange-pawn", "pink-pawn"}
+
+    def send_frame(self, class_cells: Dict[str, List[int]]):
+        """Send a CV detection frame in the format CVBridge expects.
+
+        Extracts all cells occupied by pawn-class detections and sends:
+          {"occupiedCells": [cell_id, ...]}
+        """
+        occupied = []
+        for cls, cells in class_cells.items():
+            if cls in self.PAWN_CLASSES:
+                occupied.extend(cells)
+        self.send_class_map({"occupiedCells": occupied})
 
     def send_class_map(self, class_cells: Dict[str, List[int]]):
         # Enqueue message for background sender; if not running, try to start.
