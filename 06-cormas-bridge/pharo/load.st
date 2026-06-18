@@ -1,44 +1,39 @@
 "Load the full Planet-C + Cormas-Vision stack into a fresh Pharo 13 image.
- Run this in a Playground with 'Do it all' (Ctrl+D after selecting all).
+ Run in a Playground with 'Do it all' (Ctrl+D after selecting all).
 
  Dependency chain:
-   cormas/planetc-model        -> PlanetC-Model (the game model)
-   cormas/cormas-game-server   -> CMGameServer (WebSocket server base)
    kybeka/cormas               -> CORMAS framework (user's fork)
-   this repo / CormasVision    -> CV->Cormas bridge (our package, loaded last)
+   cormas/planetc-model        -> PlanetC-Model  (the game model)
+   cormas/cormas-game-server   -> CMGameServer   (WebSocket server base)
+   kybeka/cormas-vision-server -> CMVisionServerCommand  (CV bridge UI button)
 "
 
-"1. Load upstream dependencies via Metacello"
+"1. CORMAS framework (user's fork)"
+Metacello new
+  repository: 'github://kybeka/cormas:dev';
+  baseline: 'Cormas';
+  load.
+
+"2. Planet-C model"
 Metacello new
   baseline: 'PlanetC';
   repository: 'github://cormas/planetc-model:main';
   load.
 
+"3. CV vision server (bridge + UI toggle button for the CORMAS space presenter)"
 Metacello new
-  baseline: 'CormasGameServer';
-  repository: 'github://cormas/cormas-game-server:main';
+  baseline: 'CormasVisionServer';
+  repository: 'github://kybeka/cormas-vision-server:main';
+  onConflict: [ :e | e useIncoming ];
+  onUpgrade: [ :e | e useIncoming ];
+  onWarning: [ :e | e load ];
+  ignoreImage;
   load.
 
-"2. Load CormasVision from this repo (Tonel, local path or GitHub)"
-"  Option A — from GitHub (once pushed):"
-"  Metacello new
-     baseline: 'CormasVision';
-     repository: 'github://kybeka/cormas-vision:main/06-cormas-bridge/pharo';
-     load."
+"4. After loading: open the Planet-C model, hit Initialize simulation,
+   then use the Start Server / Stop Server toggle button in the CORMAS toolbar.
+   The server listens on ws://localhost:8081/ws.
 
-"  Option B — from local clone (during development):"
-"  Metacello new
-     baseline: 'CormasVision';
-     repository: 'tonel:///path/to/cormas-vision/06-cormas-bridge/pharo';
-     load."
-
-"3. Wire bridge to the running model (paste in a Playground after Initialize simulation):
-
-  | bridge |
-  bridge := CVBridge
-    onModel: (PCModel allInstances first)
-    port: 8080.
-  bridge start.
-
-  'Bridge running — connect demo.py WebSocket client to ws://localhost:8080/ws'
+   Python side:
+     python demo.py --ws-url ws://localhost:8081/ws
 "
