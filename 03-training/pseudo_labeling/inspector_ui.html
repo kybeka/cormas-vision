@@ -298,7 +298,7 @@ cv.addEventListener("mousedown",e=>{
     draw(); updateUI(); return;
   }
   // draw tool: board/inner-board are locked — clicking over them still draws a new piece
-  const pieces=list.filter(i=>!BG_CLASSES.has(S.boxes[i].cls));
+  const pieces=list.filter(i=>!BG_CLASSES.has(S.classes[S.boxes[i].cls]));
   if(e.shiftKey){ toggleSel(pieces[0]); draw(); updateUI(); return; }
   if(pieces.length){ const pick=pieces.includes(single())?single():pieces[0]; if(!selHas(pick)){ S.sel=[pick]; setActive(S.boxes[pick].cls); }
     S.drag={mode:"move",mx:m.x,my:m.y,snap:JSON.stringify(S.boxes),orig:S.sel.map(s=>({i:s,pts:S.boxes[s].pts.map(q=>q.slice())}))};
