@@ -103,6 +103,7 @@
         <div><span>Move corner / box</span><kbd>drag</kbd></div>
         <div><span>Rotate</span><kbd>top handle</kbd></div>
         <div><span>Overlap: grabs smallest</span><kbd>auto</kbd></div>
+        <div><span>Board locked in draw mode</span><kbd>use V to move it</kbd></div>
         <div><span>Multi-select</span><kbd>shift-click</kbd></div>
         <div><span>Copy active class ← prev</span><kbd>C</kbd></div>
         <div><span>Copy all ← prev frame</span><kbd>⇧C</kbd></div>
@@ -119,6 +120,9 @@
 const ITER = parseInt("__ITERATION__") || 0;
 const HOTKEYS = "1234567890qwertyuiop".split("");
 const ROT_OFFSET = 34, CORNER = 7, HIT_CORNER = 13, ROT_R = 9, HIT_ROT = 16;
+// classes that cover the whole image — locked in draw mode so they never block piece drawing
+// (still selectable in select mode for repositioning)
+const BG_CLASSES = new Set(["board","inner-board","inner_board","inner board"]);
 const S = {
   classes:[], colors:[], total:0, idx:0,
   img:null, iw:0, ih:0,
@@ -293,12 +297,13 @@ cv.addEventListener("mousedown",e=>{
     else S.sel=[];
     draw(); updateUI(); return;
   }
-  // draw tool: shift toggles; on a box -> select + drag-to-move; on empty -> draw
-  if(e.shiftKey){ toggleSel(list[0]); draw(); updateUI(); return; }
-  if(list.length){ const pick=list.includes(single())?single():list[0]; if(!selHas(pick)){ S.sel=[pick]; setActive(S.boxes[pick].cls); }
+  // draw tool: board/inner-board are locked — clicking over them still draws a new piece
+  const pieces=list.filter(i=>!BG_CLASSES.has(S.boxes[i].cls));
+  if(e.shiftKey){ toggleSel(pieces[0]); draw(); updateUI(); return; }
+  if(pieces.length){ const pick=pieces.includes(single())?single():pieces[0]; if(!selHas(pick)){ S.sel=[pick]; setActive(S.boxes[pick].cls); }
     S.drag={mode:"move",mx:m.x,my:m.y,snap:JSON.stringify(S.boxes),orig:S.sel.map(s=>({i:s,pts:S.boxes[s].pts.map(q=>q.slice())}))};
     draw(); updateUI(); return; }
-  S.drag={mode:"pending",mx:m.x,my:m.y,x1:ix(m.x),y1:iy(m.y),list,shift:e.shiftKey};
+  S.drag={mode:"pending",mx:m.x,my:m.y,x1:ix(m.x),y1:iy(m.y),list:pieces,shift:e.shiftKey};
 });
 function toggleSel(i){ if(i===undefined) return; const k=S.sel.indexOf(i); if(k>=0) S.sel.splice(k,1); else S.sel.push(i);
   if(S.sel.length===1) setActive(S.boxes[S.sel[0]].cls); }
