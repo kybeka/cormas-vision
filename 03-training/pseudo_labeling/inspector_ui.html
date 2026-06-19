@@ -168,13 +168,13 @@ async function init(){
   S.classes=r.class_names; S.colors=r.class_colors; S.total=r.total_images;
   buildPalette(); setActive(firstPawnOr0());
   window.addEventListener("resize", ()=>{ resize(); draw(); });
-  resize(); await load(0);
+  resize(); await load(+(localStorage.getItem(`inspector_idx_${ITER}`)||0));
 }
 function firstPawnOr0(){ const i=S.classes.findIndex(c=>c.includes("pawn")); return i<0?0:i; }
 async function load(i){
   if(i<0||i>=S.total) return;
   if(S.dirty) await save(false);
-  S.idx=i;
+  S.idx=i; localStorage.setItem(`inspector_idx_${ITER}`, i);
   const r=await fetch(`/api/image/${i}`).then(r=>r.json());
   const im=new Image();
   im.onload=()=>{ S.img=im; S.iw=im.naturalWidth; S.ih=im.naturalHeight;
