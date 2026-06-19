@@ -76,18 +76,39 @@ class CormasClient:
     # classes that represent harvesters (pawns) on the board
     PAWN_CLASSES = {"blue-pawn", "red-pawn", "white-pawn", "yellow-pawn",
                     "black-pawn", "green-pawn", "orange-pawn", "pink-pawn"}
+    # green tokens = grass/biomass on a cell
+    TOKEN_BIOMASS = {"green-token"}
+    # yellow tokens = birds (numberOfNewborns)
+    TOKEN_BIRDS = {"yellow-token"}
+    # orange/red tokens = non-harvest zone / park limit → protected cell
+    TOKEN_PROTECTED = {"orange-token", "red-token"}
 
     def send_frame(self, class_cells: Dict[str, List[int]]):
-        """Send a CV detection frame in the format CVBridge expects.
+        """Map CV detections to a CORMAS board-state payload.
 
-        Extracts all cells occupied by pawn-class detections and sends:
-          {"occupiedCells": [cell_id, ...]}
+        Sends:
+          occupiedCells — cells containing any pawn (harvester positions)
+          biomass       — cells with green tokens (grass present → biomass: 3)
+          birds         — cells with yellow tokens (birds present → numberOfNewborns: 2)
+          protected     — cells with orange/red tokens (non-harvest zone)
+        Pharo resets all cells each frame then applies these lists.
         """
-        occupied = []
+        occupied, biomass, birds, protected = [], [], [], []
         for cls, cells in class_cells.items():
             if cls in self.PAWN_CLASSES:
                 occupied.extend(cells)
-        self.send_class_map({"occupiedCells": occupied})
+            if cls in self.TOKEN_BIOMASS:
+                biomass.extend(cells)
+            if cls in self.TOKEN_BIRDS:
+                birds.extend(cells)
+            if cls in self.TOKEN_PROTECTED:
+                protected.extend(cells)
+        self.send_class_map({
+            "occupiedCells": list(dict.fromkeys(occupied)),
+            "biomass":       list(dict.fromkeys(biomass)),
+            "birds":         list(dict.fromkeys(birds)),
+            "protected":     list(dict.fromkeys(protected)),
+        })
 
     def send_class_map(self, class_cells: Dict[str, List[int]]):
         # Enqueue message for background sender; if not running, try to start.

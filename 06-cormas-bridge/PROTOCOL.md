@@ -36,6 +36,29 @@ Two transports carry the **same** board state from the vision runtime to CORMAS:
   model actually wants: biomass / birds / non-harvest / park-limit tokens, and
   harvesters (the standing pawns) keyed by player colour.
 
+## WebSocket payload (live bridge — `CMVisionServerCommand`)
+
+Each frame Python sends one JSON object over the socket:
+
+```json
+{
+  "occupiedCells": [3, 7],
+  "biomass":       [1, 6, 11],
+  "birds":         [4],
+  "protected":     [15, 16]
+}
+```
+
+| field | source class | CORMAS effect |
+|---|---|---|
+| `occupiedCells` | any `*-pawn` | moves `PCHarvester` instances to those cells |
+| `biomass` | `green-token` | sets those cells to `biomass: 3`; all others to `0` |
+| `birds` | `yellow-token` | sets those cells to `numberOfNewborns: 2`; others `0` (visible in `povBirds`) |
+| `protected` | `orange-token`, `red-token` | calls `makeProtected` on those cells; `makeNotProtected` on the rest (visible in `povProtected`) |
+
+All four fields default to `[]` if absent (backward-compatible).  
+Pharo resets every cell to baseline each frame before applying the detected values.
+
 ## Why two transports
 The WebSocket gives low-latency live updates; the JSON file is trivial to consume and
 debug (no socket, just read a file) and survives restarts. The Pharo side can implement

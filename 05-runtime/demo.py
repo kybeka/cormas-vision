@@ -9,10 +9,16 @@ detections txt), a per-cell-count JSON for the CORMAS file bridge, and/or a live
 WebSocket message.
 
 Usage:
-  python demo.py                                  # watch the latest phone-server session
-  python demo.py --frames-dir <dir> --once        # process a folder once and exit
-  python demo.py --json-out cormas_state          # also write the CORMAS JSON bridge
-  python demo.py --ws-url ws://localhost:8081/ws   # also stream over WebSocket (CMVisionServerCommand default)
+  python demo.py                                         # watch the latest phone-server session
+  python demo.py --frames-dir <dir> --once               # stream every frame to CORMAS once and exit
+  python demo.py --frames-dir <dir> --snapshot           # aggregate frames, send ONE board state (Option A)
+  python demo.py --json-out cormas_state                 # also write the CORMAS JSON bridge file
+  python demo.py --ws-url ws://localhost:8081/ws         # stream over WebSocket (CMVisionServerCommand)
+
+Option A workflow (initialize CORMAS from physical board, then simulate):
+  1. python demo.py --snapshot --ws-url ws://localhost:8081/ws --frames-dir <dir>
+  2. CORMAS receives one clean board state → cell biomass, protection, pawn positions set
+  3. Click Run in CORMAS — simulation evolves from that starting state
 """
 from __future__ import annotations
 
@@ -243,6 +249,75 @@ class Pipeline:
             if self.delay:
                 time.sleep(self.delay)
 
+    def run_snapshot(self, frames_dir: Path, out_dir: Path, session_id: str,
+                     threshold: float = 0.5) -> None:
+        """Aggregate detections across all frames and send ONE board state to CORMAS.
+
+        Each cell+class pair is only included in the final snapshot if it was detected
+        in at least `threshold` fraction of frames where the board was visible.
+        This filters out single-frame noise without requiring a retrain.
+
+        This is the correct flow for Option A (initialize-then-simulate):
+          python demo.py --snapshot --ws-url ws://localhost:8081/ws
+          → CORMAS receives one clean board state
+          → researcher clicks Run to start the simulation
+        """
+        images = list_images(frames_dir)
+        if not images:
+            print("[demo] No images found.")
+            return
+
+        accumulator: Dict[str, Dict[int, int]] = {}
+        valid_frames = 0
+
+        print(f"[demo] Processing {len(images)} frames for snapshot (threshold={threshold:.0%})...")
+        for img_path in images:
+            img = cv2.imread(str(img_path))
+            if img is None:
+                continue
+            o = self.process(img)
+            if o is None:
+                continue
+            cv2.imwrite(str(out_dir / f"{img_path.stem}_annotated.jpg"), o.annotated)
+            if o.H is None:
+                print(f"[demo] {img_path.name}: board not found, skipping")
+                continue
+            groups = group_cells_by_class(o.mapped, o.class_names)
+            for cls, cells in groups.items():
+                cls_acc = accumulator.setdefault(cls, {})
+                for cell in cells:
+                    cls_acc[cell] = cls_acc.get(cell, 0) + 1
+            valid_frames += 1
+
+        if valid_frames == 0:
+            print("[demo] No valid frames — board not detected in any frame.")
+            return
+
+        min_count = threshold * valid_frames
+        snapshot: Dict[str, List[int]] = {
+            cls: sorted(cell for cell, n in counts.items() if n >= min_count)
+            for cls, counts in accumulator.items()
+            if any(n >= min_count for n in counts.values())
+        }
+
+        print(f"\n[demo] Snapshot from {valid_frames}/{len(images)} frames:")
+        for cls, cells in snapshot.items():
+            print(f"  #{cls}: {cells}")
+        if not snapshot:
+            print("  (nothing detected above threshold — lower --threshold or check weights)")
+            return
+
+        if self.client:
+            self.client.send_frame(snapshot)
+            print("[demo] Board state sent to CORMAS — run the simulation now.")
+        if self.json_out:
+            snap_counts = {cls: {cell: 1 for cell in cells} for cls, cells in snapshot.items()}
+            try:
+                write_state(self.json_out, session_id, "snapshot", snap_counts, self.rows, self.cols)
+                print(f"[demo] Snapshot written to JSON bridge.")
+            except Exception as e:
+                print(f"[demo] JSON write failed: {e}")
+
     def watch(self, frames_dir: Path, out_dir: Path, session_id: str) -> None:
         print(f"[demo] Watching for new frames in: {frames_dir}")
         processed: set = set()
@@ -285,8 +360,13 @@ def main():
     p.add_argument("--iou", type=float, default=0.5, help="IoU threshold")
     p.add_argument("--ws-url", type=str, default=None, help="WebSocket url for CORMAS (e.g. ws://localhost:8081/ws)")
     p.add_argument("--json-out", type=str, default=None, help="Directory for per-session board-state JSON (CORMAS file bridge)")
-    p.add_argument("--once", action="store_true", help="Process the folder once and exit (no watch loop)")
-    p.add_argument("--delay", type=float, default=0.0, help="Seconds to pause between frames (default 0)")
+    p.add_argument("--once", action="store_true", help="Process the folder once and exit, sending one WS message per frame")
+    p.add_argument("--snapshot", action="store_true",
+                   help="Aggregate all frames by majority vote and send ONE board state to CORMAS "
+                        "(Option A: set initial conditions, then run the simulation independently)")
+    p.add_argument("--threshold", type=float, default=0.5,
+                   help="Fraction of frames a detection must appear in to count as present in --snapshot (default 0.5)")
+    p.add_argument("--delay", type=float, default=0.0, help="Seconds to pause between frames in --once mode (default 0)")
     args = p.parse_args()
 
     frames_dir = find_latest_frames_dir(Path(args.frames_dir) if args.frames_dir else None)
@@ -302,7 +382,9 @@ def main():
     pipe = Pipeline(weights_path, rows=args.rows, cols=args.cols, conf=args.conf, iou=args.iou,
                     json_out=args.json_out, ws_url=args.ws_url, delay=args.delay)
     try:
-        if args.once:
+        if args.snapshot:
+            pipe.run_snapshot(frames_dir, out_dir, session_id, threshold=args.threshold)
+        elif args.once:
             pipe.run_once(frames_dir, out_dir, session_id)
         else:
             pipe.watch(frames_dir, out_dir, session_id)
